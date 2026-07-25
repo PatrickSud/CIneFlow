@@ -36,7 +36,7 @@ Em ordem de valor:
 
 **Alto valor**
 
-- **Integração com API de metadados (TMDB ou OMDb):** hoje é preciso digitar título, ano, gêneros e colar a URL do pôster à mão. Com uma API, você digita o nome e o app preenche tudo automaticamente. Exige uma chave gratuita — passo a passo no README.
+- **~~Integração com API de metadados (TMDB)~~ ✅ IMPLEMENTADO:** aba "Buscar" ao adicionar um título — digite o nome e escolha um resultado; título, ano, gêneros e pôster são preenchidos automaticamente. Precisa de uma chave gratuita do TMDB (passo a passo no README). Arquivo `src/lib/tmdb.js`.
 - **Rastreamento por episódio para séries:** hoje só há "temporadas assistidas". Faltam episódios (Sx Ex) e progresso real de série.
 - **Confirmação de exclusão estilizada:** hoje usa o `confirm()` nativo do navegador, que destoa do visual.
 
@@ -55,6 +55,6 @@ Em ordem de valor:
 
 ## 6. Observações de arquitetura
 
-- Um único componente `App` concentra toda a lógica e a UI (~1.100 linhas). Conforme crescer, vale extrair `ItemCard`, `Modal`, `CineMatch`, `Dashboard` e `Toast` em arquivos próprios, e mover a lógica de dados para um hook `useLibrary()`.
+- Um único componente `App` concentra toda a lógica e a UI. Conforme crescer, vale extrair `ItemCard`, `Modal`, `CineMatch`, `Dashboard` e `Toast` em arquivos próprios, e mover a lógica de dados para um hook `useLibrary()`. A integração TMDB já foi isolada em `src/lib/tmdb.js` como exemplo desse padrão.
 - As classes `slate-850`, `w-5.5` e `h-5.5` não existem no Tailwind padrão — foram adicionadas no `tailwind.config.js`. Sem isso, elas seriam ignoradas e o visual quebraria sutilmente.
 - O arquivo original foi preservado em `_legacy/cineflow.original.tsx` para referência.

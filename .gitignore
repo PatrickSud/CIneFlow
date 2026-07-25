@@ -2,6 +2,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Variáveis de ambiente (mantém apenas o .env.example versionado)
+.env
+.env.*
+!.env.example
 .DS_Store
 .vscode/*
 !.vscode/extensions.json

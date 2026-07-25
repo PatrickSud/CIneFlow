@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { INITIAL_DATABASE } from './data/initialDatabase';
+import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv } from './lib/tmdb';
 
 const POSTER_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'><rect width='100' height='150' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-size='10' font-family='sans-serif'>Sem Imagem</text></svg>";
 
@@ -61,6 +62,15 @@ export default function App() {
   const [formNota, setFormNota] = useState(0);
   const [formNotasPessoais, setFormNotasPessoais] = useState('');
 
+  // Busca TMDB (preenchimento automático de metadados)
+  const [tmdbQuery, setTmdbQuery] = useState('');
+  const [tmdbResults, setTmdbResults] = useState([]);
+  const [tmdbLoading, setTmdbLoading] = useState(false);
+  const [tmdbError, setTmdbError] = useState('');
+  const [tmdbSearched, setTmdbSearched] = useState(false);
+  const [tmdbKeyInput, setTmdbKeyInput] = useState('');
+  const [hasTmdbKey, setHasTmdbKey] = useState(() => Boolean(getTmdbKey()));
+
   // Sorteador (CineMatch)
   const [matchType, setMatchType] = useState('all'); 
   const [matchStatus, setMatchStatus] = useState('nao_assistido'); 
@@ -90,7 +100,11 @@ export default function App() {
     setFormTemporadas(0);
     setFormNota(0);
     setFormNotasPessoais('');
-    setModalMode('manual');
+    setTmdbQuery('');
+    setTmdbResults([]);
+    setTmdbError('');
+    setTmdbSearched(false);
+    setModalMode(hasTmdbKey ? 'tmdb' : 'manual');
     setIsModalOpen(true);
   };
 
@@ -224,6 +238,59 @@ export default function App() {
     } catch (e) {
       showToast('Falha ao exportar a biblioteca.', 'error');
     }
+  };
+
+  // --- Busca TMDB ---
+  const handleSaveTmdbKey = () => {
+    const k = tmdbKeyInput.trim();
+    if (!k) return;
+    setTmdbKey(k);
+    setHasTmdbKey(true);
+    setTmdbKeyInput('');
+    showToast('Chave TMDB guardada!');
+  };
+
+  const handleTmdbSearch = async (e) => {
+    if (e) e.preventDefault();
+    const q = tmdbQuery.trim();
+    if (!q) return;
+    setTmdbLoading(true);
+    setTmdbError('');
+    setTmdbResults([]);
+    setTmdbSearched(true);
+    try {
+      const results = await searchTmdb(q);
+      setTmdbResults(results);
+      if (results.length === 0) setTmdbError('Nenhum resultado encontrado no TMDB.');
+    } catch (err) {
+      if (err.code === 'NO_KEY') {
+        setHasTmdbKey(false);
+        setTmdbError('Configure a sua chave TMDB para pesquisar.');
+      } else if (err.code === 'BAD_KEY') {
+        setTmdbError('Chave TMDB inválida. Verifique e tente novamente.');
+      } else {
+        setTmdbError('Não foi possível pesquisar agora. Verifique a sua ligação.');
+      }
+    } finally {
+      setTmdbLoading(false);
+    }
+  };
+
+  // Preenche o formulário manual com um resultado do TMDB (para revisão antes de guardar)
+  const handlePickTmdb = (r) => {
+    setEditingItem(null);
+    setFormTitulo(r.titulo);
+    setFormTipo(r.tipo);
+    setFormAno(r.ano || new Date().getFullYear());
+    setFormGeneros(Array.isArray(r.generos) ? r.generos.join(', ') : '');
+    setFormPosterUrl(r.poster_url || '');
+    setFormStatusAssistido('nao_assistido');
+    setFormProgresso(0);
+    setFormTemporadas(0);
+    setFormNota(0);
+    setFormNotasPessoais('');
+    setModalMode('manual');
+    showToast('Dados preenchidos — revise e guarde.', 'info');
   };
 
   // Deletar Item
@@ -948,6 +1015,17 @@ export default function App() {
             {/* Abas do Modal */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-4">
               <div className="flex space-x-3 text-xs">
+                {!editingItem && (
+                  <button
+                    type="button"
+                    onClick={() => setModalMode('tmdb')}
+                    className={`pb-1 font-bold tracking-wider uppercase border-b-2 transition-all ${
+                      modalMode === 'tmdb' ? 'border-purple-500 text-white' : 'border-transparent text-slate-500'
+                    }`}
+                  >
+                    🔎 Buscar
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setModalMode('manual')}
@@ -977,15 +1055,125 @@ export default function App() {
               </button>
             </div>
 
-            {/* SEÇÃO: IMPORTAÇÃO */}
-            {modalMode === 'import' ? (
+            {/* SEÇÃO: BUSCA TMDB */}
+            {modalMode === 'tmdb' ? (
+              <div className="space-y-4">
+                {!hasTmdbKey ? (
+                  <div className="space-y-3 py-2">
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2">
+                      <p className="text-xs text-slate-300 font-semibold">Configure a sua chave TMDB (grátis)</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Crie uma chave em{' '}
+                        <a
+                          href="https://www.themoviedb.org/settings/api"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-purple-400 underline"
+                        >
+                          themoviedb.org
+                        </a>{' '}
+                        (API Key v3). Ela fica guardada apenas no seu navegador.
+                      </p>
+                      <div className="flex gap-2 pt-1">
+                        <input
+                          type="text"
+                          value={tmdbKeyInput}
+                          onChange={(e) => setTmdbKeyInput(e.target.value)}
+                          placeholder="Cole a sua API Key aqui"
+                          className="flex-1 py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveTmdbKey}
+                          className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase rounded-xl transition-all"
+                        >
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <form onSubmit={handleTmdbSearch} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={tmdbQuery}
+                        onChange={(e) => setTmdbQuery(e.target.value)}
+                        placeholder="Pesquisar filme ou série..."
+                        autoFocus
+                        className="flex-1 py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={tmdbLoading}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-xs font-bold uppercase rounded-xl transition-all"
+                      >
+                        {tmdbLoading ? '...' : '🔎'}
+                      </button>
+                    </form>
+
+                    {tmdbError && (
+                      <p className="text-[11px] text-red-300 bg-red-950/40 border border-red-500/20 rounded-lg px-3 py-2">
+                        {tmdbError}
+                      </p>
+                    )}
+
+                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                      {tmdbResults.map((r) => (
+                        <button
+                          key={r.key}
+                          type="button"
+                          onClick={() => handlePickTmdb(r)}
+                          className="w-full text-left flex gap-3 items-start p-2 bg-slate-950/60 hover:bg-slate-800/60 border border-slate-800 hover:border-purple-500/40 rounded-xl transition-all"
+                        >
+                          <img
+                            src={r.poster_url || POSTER_FALLBACK}
+                            alt={r.titulo}
+                            className="w-12 h-16 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = POSTER_FALLBACK;
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[8px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded uppercase font-bold">
+                                {r.tipo === 'movie' ? '🎬 Filme' : '📺 Série'}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
+                            </div>
+                            <p className="text-xs font-bold text-white truncate mt-0.5">{r.titulo}</p>
+                            {r.generos.length > 0 && (
+                              <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                      {tmdbSearched && !tmdbLoading && tmdbResults.length === 0 && !tmdbError && (
+                        <p className="text-xs text-slate-500 text-center py-6">Nenhum resultado.</p>
+                      )}
+                    </div>
+
+                    {!keyIsFromEnv && (
+                      <button
+                        type="button"
+                        onClick={() => { setTmdbKey(''); setHasTmdbKey(false); setTmdbResults([]); setTmdbSearched(false); }}
+                        className="text-[10px] text-slate-500 hover:text-slate-300 underline"
+                      >
+                        Alterar chave TMDB
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : modalMode === 'import' ? (
               <div className="space-y-4 py-4 text-center">
                 <div className="border-2 border-dashed border-slate-800 p-6 rounded-2xl bg-slate-950/40">
                   <svg className="w-10 h-10 text-purple-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                   <p className="text-xs text-slate-300 font-semibold">Selecione o ficheiro de biblioteca `.json`</p>
-                  
+
                   <input
                     type="file"
                     ref={fileInputRef}

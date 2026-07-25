@@ -83,8 +83,10 @@ CineFlow/
 │   ├── main.jsx            # inicializa o React
 │   ├── App.jsx             # a aplicação (lista, CineMatch, dashboard, modal)
 │   ├── index.css           # Tailwind + estilos base
-│   └── data/
-│       └── initialDatabase.js   # base inicial de 147 títulos
+│   ├── data/
+│   │   └── initialDatabase.js   # base inicial de 147 títulos
+│   └── lib/
+│       └── tmdb.js         # integração com a API do TMDB
 ├── _legacy/
 │   └── cineflow.original.tsx    # arquivo monolítico original (referência)
 ├── REVISAO.md              # relatório de revisão e roadmap
@@ -93,16 +95,19 @@ CineFlow/
 
 ---
 
-## (Opcional) Preencher metadados automaticamente com a API do TMDB
+## Preencher metadados automaticamente com a API do TMDB
 
-Hoje, ao adicionar um título, você digita tudo à mão. Para buscar título, ano, gêneros e pôster automaticamente:
+A busca por título, ano, gêneros e pôster **já está implementada** (aba **Buscar** ao adicionar um título). Ela precisa de uma chave gratuita do TMDB:
 
 1. Crie uma conta gratuita em https://www.themoviedb.org.
-2. Vá em **Configurações → API** e solicite uma **API Key** (uso pessoal, gratuito).
-3. Guarde a chave em um arquivo `.env` na raiz (o `.gitignore` já ignora `*.local`; use `VITE_TMDB_KEY=sua_chave`).
-4. No código, use `fetch` para `https://api.themoviedb.org/3/search/multi?query=...&api_key=...` e preencha o formulário com o primeiro resultado. O pôster vem em `https://image.tmdb.org/t/p/w300/<poster_path>`.
+2. Vá em **Configurações → API** e solicite uma **API Key** (v3, uso pessoal, gratuito).
+3. Informe a chave de uma das duas formas:
+   - **Na interface (mais simples):** abra "Novo Título → Buscar" e cole a chave quando pedido. Ela fica salva só no seu navegador.
+   - **No build (recomendado se você publicar):** copie `.env.example` para `.env` e preencha `VITE_TMDB_KEY=sua_chave`. No Vercel/Netlify, adicione a mesma variável de ambiente nas configurações do projeto.
 
-Posso implementar essa integração — é o próximo passo de maior valor. Veja o `REVISAO.md` para o roadmap completo.
+Depois é só digitar o nome do filme/série, escolher um resultado da lista, revisar os campos preenchidos e guardar.
+
+> Observação: por ser um app 100% no navegador, a chave fica visível no código enviado ao cliente. Para uso pessoal com uma chave gratuita do TMDB isso é aceitável. Se um dia o app for público de verdade, o ideal é intermediar as chamadas por um pequeno backend/serverless.
 
 ---
 
