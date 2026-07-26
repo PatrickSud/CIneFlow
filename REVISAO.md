@@ -46,7 +46,7 @@ Em ordem de valor:
 - **~~PWA / instalável e offline~~ ✅ IMPLEMENTADO:** manifest, service worker, ícones, banner automático e botão de instalar no celular (com instruções para iOS). Arquivos em `public/`.
 - **~~Tags~~ ✅ IMPLEMENTADO:** tags livres por título, usadas em filtro (interseção), Match e busca.
 - **~~Tipos de conteúdo~~ ✅ IMPLEMENTADO:** além de Filme e Série, agora há Anime, Documentário, Minissérie, Programa de TV e Stand-up/Especial. Seriados (série/anime/minissérie/programa) têm temporada+episódio; os demais usam progresso %. Filtro e Match viraram dropdowns; dashboard mostra "Por tipo"; o TMDB detecta documentário e anime automaticamente.
-- **Migração para TypeScript (em andamento, incremental):** já convertidos `src/lib/library.ts` e `src/lib/tmdb.ts` com tipos, e criado `src/types.ts` com a interface `Item` e as uniões `Tipo`/`Status`. `tsconfig.json` usa `allowJs`, então o `App.jsx` continua funcionando enquanto a migração avança. Verificação com `npm run typecheck` (passa em modo strict). Próximos passos: converter o modelo de dados/`App` e quebrar em componentes.
+- **Migração para TypeScript (em andamento, incremental):** já convertidos `src/lib/library.ts` e `src/lib/tmdb.ts` com tipos, e criado `src/types.ts` com a interface `Item` e as uniões `Tipo`/`Status`. `tsconfig.json` usa `allowJs`, então o `App.jsx` continua funcionando enquanto a migração avança. Verificação com `npm run typecheck` (passa em modo strict). Passo 2: extraídos `src/lib/contentTypes.ts` (tipos de conteúdo) e os primeiros componentes tipados `src/components/StarRating.tsx` e `Toast.tsx`, já usados pelo `App.jsx`. Próximos passos: extrair `ItemCard`/`Modal`/`Dashboard` e, por fim, converter o `App` para `.tsx`.
 
 **Baixo valor / polimento**
 

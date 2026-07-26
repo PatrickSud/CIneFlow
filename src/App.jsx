@@ -2,25 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { INITIAL_DATABASE } from './data/initialDatabase';
 import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes } from './lib/library';
-
-const POSTER_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'><rect width='100' height='150' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-size='10' font-family='sans-serif'>Sem Imagem</text></svg>";
+import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
+import StarRating from './components/StarRating';
+import Toast from './components/Toast';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
-
-// Tipos de conteúdo suportados. `serial: true` = tem temporadas/episódios.
-const TYPES = [
-  { id: 'movie',       label: 'Filme',              emoji: '🎬', serial: false },
-  { id: 'series',      label: 'Série',              emoji: '📺', serial: true  },
-  { id: 'anime',       label: 'Anime',              emoji: '🍥', serial: true  },
-  { id: 'documentary', label: 'Documentário',       emoji: '🎥', serial: false },
-  { id: 'miniseries',  label: 'Minissérie',         emoji: '📼', serial: true  },
-  { id: 'tvshow',      label: 'Programa de TV',     emoji: '🎙️', serial: true  },
-  { id: 'standup',     label: 'Stand-up / Especial', emoji: '🎤', serial: false },
-];
-const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.id, t]));
-const typeLabel = (id) => (TYPE_MAP[id]?.label) || 'Filme';
-const typeEmoji = (id) => (TYPE_MAP[id]?.emoji) || '🎬';
-const isSerial  = (id) => Boolean(TYPE_MAP[id]?.serial);
 
 // Gera IDs únicos e robustos (evita colisões de Date.now() em criações rápidas)
 const genId = (prefix = 'custom') =>
@@ -1189,27 +1175,7 @@ export default function App() {
                     <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80 flex items-center justify-between">
                       {/* Estrelas */}
                       <div className="flex items-center space-x-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            onClick={() => handleRateQuickly(item.id, star)}
-                            aria-label={`Classificar com ${star} ${star === 1 ? 'estrela' : 'estrelas'}`}
-                            title={`${star} ${star === 1 ? 'estrela' : 'estrelas'}`}
-                            className="p-0.5 hover:scale-125 transition-transform"
-                          >
-                            <svg
-                              className={`w-3.5 h-3.5 ${
-                                star <= (item.nota || 0) 
-                                  ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_2px_rgba(251,191,36,0.2)]' 
-                                  : 'text-slate-700'
-                              }`}
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                            </svg>
-                          </button>
-                        ))}
+                        <StarRating value={item.nota || 0} onRate={(star) => handleRateQuickly(item.id, star)} />
                       </div>
 
                       {/* Opções */}
@@ -2029,26 +1995,7 @@ export default function App() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block text-center">Classificação ({formNota} estrelas)</label>
                   <div className="flex items-center justify-center space-x-1.5 bg-slate-950 py-1.5 rounded-xl border border-slate-800">
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setFormNota(star)}
-                        className="p-1 hover:scale-125 transition-transform focus:outline-none"
-                      >
-                        <svg
-                          className={`w-6 h-6 ${
-                            star <= formNota 
-                              ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.3)]' 
-                              : 'text-slate-700'
-                          }`}
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      </button>
-                    ))}
+                    <StarRating value={formNota} onRate={setFormNota} sizeClass="w-6 h-6" strongGlow />
                   </div>
                 </div>
 
@@ -2471,24 +2418,7 @@ export default function App() {
       )}
 
       {/* ==================== TOAST DE NOTIFICAÇÃO ==================== */}
-      {toast.show && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl shadow-2xl border text-xs font-bold flex items-center space-x-2 animate-[fadeIn_0.2s_ease-out] ${
-            toast.type === 'error'
-              ? 'bg-red-950/95 border-red-500/40 text-red-200'
-              : toast.type === 'info'
-              ? 'bg-slate-800/95 border-slate-600/50 text-slate-100'
-              : 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
-          }`}
-        >
-          <span>
-            {toast.type === 'error' ? '⚠️' : toast.type === 'info' ? 'ℹ️' : '✓'}
-          </span>
-          <span>{toast.message}</span>
-        </div>
-      )}
+      <Toast toast={toast} />
 
     </div>
   );
