@@ -24,6 +24,16 @@ const genId = (prefix: string = 'custom'): string =>
     ? `${prefix}-${crypto.randomUUID()}`
     : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// Garante que campos de array existam (títulos antigos podem não ter tags/elenco).
+function normalizeItem(raw: any): Item {
+  return {
+    ...raw,
+    generos: Array.isArray(raw?.generos) ? raw.generos : [],
+    tags: Array.isArray(raw?.tags) ? raw.tags : [],
+    elenco: Array.isArray(raw?.elenco) ? raw.elenco : [],
+  };
+}
+
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,12 +43,12 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeItem);
       } catch (e) {
         console.error("Erro ao carregar dados salvos. Usando padrão.");
       }
     }
-    return INITIAL_DATABASE;
+    return (INITIAL_DATABASE as any[]).map(normalizeItem);
   });
 
   useEffect(() => {

@@ -22,6 +22,10 @@ export default function DetailModal({
   const runtime = item.runtime ?? 0;
   const numTemporadas = item.num_temporadas ?? 0;
   const numEpisodios = item.num_episodios ?? 0;
+  // Títulos antigos podem não ter estes arrays — protegemos contra undefined.
+  const generos = item.generos || [];
+  const tags = item.tags || [];
+  const elenco = item.elenco || [];
 
   const providerGroups: Array<[string, Provider[]]> = providers
     ? [
@@ -91,12 +95,12 @@ export default function DetailModal({
           </div>
 
           {/* Gêneros + Tags */}
-          {(item.generos.length > 0 || item.tags.length > 0) && (
+          {(generos.length > 0 || tags.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
-              {item.generos.map((g, i) => (
+              {generos.map((g, i) => (
                 <span key={`g${i}`} className="text-[10px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">{g}</span>
               ))}
-              {item.tags.map((t, i) => (
+              {tags.map((t, i) => (
                 <span key={`t${i}`} className="text-[10px] bg-purple-950/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">#{t}</span>
               ))}
             </div>
@@ -121,11 +125,11 @@ export default function DetailModal({
           )}
 
           {/* Elenco */}
-          {Array.isArray(item.elenco) && item.elenco.length > 0 && (
+          {elenco.length > 0 && (
             <div>
               <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Elenco</h4>
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {item.elenco.map((c, i) => (
+                {elenco.map((c, i) => (
                   <div key={i} className="flex-shrink-0 w-16 text-center">
                     <img
                       src={c.foto_url || POSTER_FALLBACK}
