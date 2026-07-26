@@ -1204,7 +1204,7 @@ export default function App() {
               </svg>
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-wider bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent uppercase">
+              <h1 className="text-lg font-black tracking-wider bg-gradient-to-r from-purple-300 to-indigo-300 bg-clip-text text-transparent uppercase">
                 CineFlow
               </h1>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">A Minha Biblioteca</p>

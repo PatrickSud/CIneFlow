@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Informa que o app já é escuro — evita o "force dark" do navegador reprocessar as cores */
+:root {
+  color-scheme: dark;
+}
+
 /* Fundo escuro padrão mesmo antes do React montar */
 html,
 body {
