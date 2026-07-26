@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { INITIAL_DATABASE } from './data/initialDatabase';
 import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
-import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes } from './lib/library';
+import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
 import StarRating from './components/StarRating';
 import Toast from './components/Toast';
+import ItemCard from './components/ItemCard';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -95,6 +96,8 @@ export default function App() {
   const [hasTmdbKey, setHasTmdbKey] = useState(() => Boolean(getTmdbKey()));
   const [showTmdbHelp, setShowTmdbHelp] = useState(false);
   const [confirmState, setConfirmState] = useState({ open: false, id: null, titulo: '' });
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
+  const [syncState, setSyncState] = useState({ running: false, done: 0, total: 0, updated: 0 });
   const [showTagManager, setShowTagManager] = useState(false);
   const [tagEdits, setTagEdits] = useState({});
 
@@ -473,6 +476,76 @@ export default function App() {
     }
   };
 
+  // --- Atualizar toda a biblioteca com dados atuais do TMDB ---
+  // Preserva dados pessoais (nota, estado, tags, notas, progresso) e atualiza só metadados.
+  const handleRefreshTmdb = async () => {
+    setShowSyncConfirm(false);
+    const current = [...items];
+    setSyncState({ running: true, done: 0, total: current.length, updated: 0 });
+    let updated = 0;
+    let cursor = 0;
+    const CONC = 5; // requisições em paralelo
+
+    const processOne = async (idx) => {
+      const it = current[idx];
+      try {
+        let id = it.tmdb_id;
+        let media = it.tmdb_media_type;
+
+        // Item manual (sem tmdb_id): tenta descobrir pelo título.
+        if (!id) {
+          const results = await searchTmdb(it.titulo);
+          const match = bestTmdbMatch({ titulo: it.titulo, ano: it.ano }, results);
+          if (match) {
+            id = match.tmdb_id;
+            media = match.media_type;
+            current[idx] = {
+              ...current[idx],
+              tmdb_id: id,
+              tmdb_media_type: media,
+              generos: (!it.generos || it.generos.length === 0) && match.generos.length ? match.generos : it.generos,
+              poster_url: it.poster_url || match.poster_url,
+              overview: it.overview || match.overview,
+            };
+          }
+        }
+
+        if (id) {
+          const d = await fetchTmdbDetails({ id, mediaType: media || (isSerial(it.tipo) ? 'tv' : 'movie') });
+          if (d) {
+            current[idx] = {
+              ...current[idx],
+              overview: d.overview || current[idx].overview || '',
+              runtime: d.runtime || current[idx].runtime || 0,
+              num_temporadas: d.num_temporadas || current[idx].num_temporadas || 0,
+              num_episodios: d.num_episodios || current[idx].num_episodios || 0,
+              elenco: d.elenco && d.elenco.length ? d.elenco : current[idx].elenco,
+              backdrop_url: d.backdrop_url || current[idx].backdrop_url || '',
+              tmdb_id: id,
+              tmdb_media_type: media || current[idx].tmdb_media_type,
+            };
+            updated++;
+          }
+        }
+      } catch (e) {
+        /* ignora falhas pontuais e segue */
+      }
+      setSyncState((s) => ({ ...s, done: s.done + 1, updated }));
+    };
+
+    const worker = async () => {
+      while (cursor < current.length) {
+        const idx = cursor++;
+        await processOne(idx);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONC, current.length) }, () => worker()));
+
+    setItems(current);
+    setSyncState((s) => ({ ...s, running: false }));
+    showToast(`Atualização concluída: ${updated} de ${current.length} título(s) enriquecido(s).`);
+  };
+
   // --- Busca TMDB ---
   const handleSaveTmdbKey = () => {
     const k = tmdbKeyInput.trim();
@@ -834,6 +907,17 @@ export default function App() {
             >
               {theme === 'light' ? '🌙' : '☀️'}
             </button>
+            {hasTmdbKey && (
+              <button
+                onClick={() => setShowSyncConfirm(true)}
+                disabled={syncState.running}
+                aria-label="Atualizar toda a biblioteca com dados do TMDB"
+                title="Atualizar metadados de toda a biblioteca via TMDB"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-60 text-slate-200 text-sm rounded-xl border border-slate-700 transition-all"
+              >
+                {syncState.running ? '⏳' : '🔄'}
+              </button>
+            )}
             <button
               onClick={handleExport}
               aria-label="Exportar biblioteca (backup JSON)"
@@ -1049,169 +1133,16 @@ export default function App() {
             {processedItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {processedItems.map((item) => (
-                  <div
+                  <ItemCard
                     key={item.id}
-                    className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group"
-                  >
-                    
-                    {/* Header com Capa */}
-                    <div className="flex items-start p-4 space-x-4">
-                      {/* Imagem do Pôster (abre detalhes) */}
-                      <button
-                        type="button"
-                        onClick={() => setDetailItem(item)}
-                        title="Ver detalhes"
-                        className="w-20 h-28 flex-shrink-0 bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-800 relative cursor-pointer"
-                      >
-                        <img
-                          src={item.poster_url || POSTER_FALLBACK}
-                          alt={item.titulo}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = POSTER_FALLBACK;
-                          }}
-                        />
-                        {/* Selo Tipo */}
-                        <div className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-200" title={typeLabel(item.tipo)}>
-                          {typeEmoji(item.tipo)}
-                        </div>
-                      </button>
-
-                      {/* Info do Card */}
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
-                          
-                          {/* Estado Badge */}
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
-                            item.status_assistido === 'assistido' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/20' :
-                            item.status_assistido === 'em_andamento' ? 'bg-blue-950/80 text-blue-300 border border-blue-500/20' :
-                            'bg-slate-950/80 text-slate-400 border border-slate-800'
-                          }`}>
-                            {item.status_assistido === 'assistido' ? 'Assistido' :
-                             item.status_assistido === 'em_andamento' ? 'Em Curso' :
-                             'Pendente'}
-                          </span>
-                        </div>
-
-                        <h3
-                          onClick={() => setDetailItem(item)}
-                          className="font-bold text-sm text-white leading-tight truncate group-hover:text-purple-300 transition-colors cursor-pointer"
-                          title={item.titulo}
-                        >
-                          {item.titulo}
-                        </h3>
-
-                        {/* Gêneros */}
-                        {Array.isArray(item.generos) && item.generos.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {item.generos.slice(0, 3).map((gen, gIdx) => (
-                              <span key={gIdx} className="bg-slate-950 text-[9px] px-1.5 py-0.5 rounded text-slate-400">
-                                {gen}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-600 italic">Sem géneros</span>
-                        )}
-
-                        {/* Tags */}
-                        {Array.isArray(item.tags) && item.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {item.tags.map((t, tIdx) => (
-                              <button
-                                key={tIdx}
-                                type="button"
-                                onClick={() => { setFilterTags([t]); setActiveTab('lista'); }}
-                                title={`Filtrar por #${t}`}
-                                className="bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20 hover:border-purple-500/50 transition-colors"
-                              >
-                                #{t}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Barra de Progresso / Temporadas */}
-                        {item.status_assistido === 'em_andamento' && item.progresso_porcentagem > 0 && (
-                          <div className="space-y-1 pt-1">
-                            <div className="flex justify-between items-center text-[9px] font-bold text-blue-400">
-                              <span>Progresso</span>
-                              <span>{item.progresso_porcentagem}%</span>
-                            </div>
-                            <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden">
-                              <div className="bg-blue-500 h-full rounded-full" style={{ width: `${item.progresso_porcentagem}%` }}></div>
-                            </div>
-                          </div>
-                        )}
-
-                        {isSerial(item.tipo) && item.status_assistido === 'em_andamento' && (item.temporada_atual > 0 || item.episodio_atual > 0) && (
-                          <div className="pt-1.5 flex items-center space-x-1">
-                            <span className="text-[10px] bg-blue-950/60 text-blue-300 px-1.5 py-0.5 rounded font-bold border border-blue-900/40">
-                              📺 T{item.temporada_atual || 1} · E{item.episodio_atual || 1}
-                            </span>
-                          </div>
-                        )}
-
-                        {isSerial(item.tipo) && item.status_assistido !== 'em_andamento' && item.temporadas_assistidas_max > 0 && (
-                          <div className="pt-1.5 flex items-center space-x-1">
-                            <span className="text-[10px] bg-indigo-950/60 text-indigo-300 px-1.5 py-0.5 rounded font-bold border border-indigo-900/30">
-                              📺 {item.temporadas_assistidas_max} {item.temporadas_assistidas_max === 1 ? 'Temp.' : 'Temps.'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Notas Pessoais */}
-                    {item.notas_pessoais && (
-                      <p className="mx-4 mb-3 text-[10px] text-slate-400 bg-slate-950/50 p-2 rounded-lg italic line-clamp-2 border border-slate-850">
-                        "{item.notas_pessoais}"
-                      </p>
-                    )}
-
-                    {/* Footer do Card */}
-                    <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80 flex items-center justify-between">
-                      {/* Estrelas */}
-                      <div className="flex items-center space-x-1">
-                        <StarRating value={item.nota || 0} onRate={(star) => handleRateQuickly(item.id, star)} />
-                      </div>
-
-                      {/* Opções */}
-                      <div className="flex items-center space-x-1.5">
-                        <button
-                          onClick={() => handleToggleWatchedQuickly(item.id)}
-                          className={`p-1 border rounded-lg text-xs transition-colors ${
-                            item.status_assistido === 'assistido' 
-                              ? 'bg-emerald-950 text-emerald-400 border-emerald-500/20' 
-                              : 'bg-slate-950 text-slate-500 border-slate-800 hover:text-white'
-                          }`}
-                          title="Alternar Visualização"
-                          aria-label="Alternar estado assistido"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={() => handleOpenEditModal(item)}
-                          className="p-1 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-purple-400 border border-slate-800 rounded-lg text-xs"
-                          title="Editar Ficha"
-                          aria-label="Editar ficha"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => handleDeleteItem(item.id, item.titulo)}
-                          className="p-1 bg-slate-950 hover:bg-red-950/20 text-slate-600 hover:text-red-400 border border-slate-800 rounded-lg text-xs"
-                          title="Remover"
-                          aria-label="Remover título da biblioteca"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-
-                  </div>
+                    item={item}
+                    onOpenDetail={setDetailItem}
+                    onRate={handleRateQuickly}
+                    onToggleWatched={handleToggleWatchedQuickly}
+                    onEdit={handleOpenEditModal}
+                    onDelete={handleDeleteItem}
+                    onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
+                  />
                 ))}
               </div>
             ) : (
@@ -2082,6 +2013,53 @@ export default function App() {
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ==================== CONFIRMAÇÃO: ATUALIZAR TMDB ==================== */}
+      {showSyncConfirm && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSyncConfirm(false)}>
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-purple-950/60 border border-purple-500/30 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🔄</div>
+            <h3 className="text-sm font-black text-white text-center mb-1">Atualizar biblioteca pelo TMDB?</h3>
+            <p className="text-xs text-slate-400 text-center mb-2">
+              Vou reler os <strong className="text-slate-200">{items.length}</strong> títulos e atualizar sinopse, duração, temporadas/episódios, elenco e pôster com os dados atuais do TMDB. Itens adicionados manualmente serão associados pelo nome.
+            </p>
+            <p className="text-[11px] text-slate-500 text-center mb-5">
+              As suas informações pessoais (nota, estado, tags, anotações e progresso) são preservadas. Pode levar um tempo.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowSyncConfirm(false)}
+                className="flex-1 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRefreshTmdb}
+                className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
+              >
+                Atualizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== PROGRESSO: ATUALIZAR TMDB ==================== */}
+      {syncState.running && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl text-center">
+            <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-3"></div>
+            <h3 className="text-sm font-black text-white mb-1">A atualizar pelo TMDB…</h3>
+            <p className="text-xs text-slate-400 mb-3">{syncState.done} de {syncState.total} · {syncState.updated} enriquecidos</p>
+            <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-850">
+              <div
+                className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all"
+                style={{ width: `${syncState.total ? Math.round((syncState.done / syncState.total) * 100) : 0}%` }}
+              ></div>
+            </div>
           </div>
         </div>
       )}

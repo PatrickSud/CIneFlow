@@ -23,6 +23,7 @@
     "src/lib/tmdb.ts",
     "src/lib/contentTypes.ts",
     "src/components/StarRating.tsx",
-    "src/components/Toast.tsx"
+    "src/components/Toast.tsx",
+    "src/components/ItemCard.tsx"
   ]
 }

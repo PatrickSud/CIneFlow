@@ -109,6 +109,8 @@ Depois é só digitar o nome do filme/série, escolher um resultado da lista, re
 
 Com a chave configurada, a **barra de pesquisa da página inicial** passa a buscar na sua biblioteca **e** na web (TMDB) ao mesmo tempo. Os resultados da web aparecem separados, com um botão **Adicionar** que abre o formulário já preenchido.
 
+O botão **🔄 (Atualizar TMDB)** no cabeçalho relê toda a biblioteca e atualiza os metadados (sinopse, duração, temporadas/episódios, elenco, pôster) com os dados atuais do TMDB. Títulos adicionados manualmente são associados automaticamente pelo nome. As suas informações pessoais (nota, estado, tags, anotações e progresso) são sempre preservadas.
+
 > Observação: por ser um app 100% no navegador, a chave fica visível no código enviado ao cliente. Para uso pessoal com uma chave gratuita do TMDB isso é aceitável. Se um dia o app for público de verdade, o ideal é intermediar as chamadas por um pequeno backend/serverless.
 
 ---

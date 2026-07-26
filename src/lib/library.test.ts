@@ -6,6 +6,8 @@ import {
   pickMatches,
   totalWatchMinutes,
   formatMinutes,
+  titleSimilarity,
+  bestTmdbMatch,
 } from './library';
 import type { Tipo } from '../types';
 
@@ -81,5 +83,24 @@ describe('totalWatchMinutes / formatMinutes', () => {
     expect(formatMinutes(45)).toBe('45 min');
     expect(formatMinutes(90)).toBe('1h 30min');
     expect(formatMinutes(60 * 25)).toBe('1d 1h');
+  });
+});
+
+describe('titleSimilarity / bestTmdbMatch', () => {
+  it('ignora acentos e maiúsculas', () => {
+    expect(titleSimilarity('Coração Valente', 'coracao valente')).toBeCloseTo(1);
+    expect(titleSimilarity('Matrix', 'The Matrix')).toBeCloseTo(0.5);
+  });
+  it('escolhe o melhor por nome + ano', () => {
+    const results = [
+      { titulo: 'Matrix Reloaded', ano: 2003, tmdb_id: 604, media_type: 'movie' as const },
+      { titulo: 'Matrix', ano: 1999, tmdb_id: 603, media_type: 'movie' as const },
+    ];
+    const m = bestTmdbMatch({ titulo: 'Matrix', ano: 1999 }, results);
+    expect(m?.tmdb_id).toBe(603);
+  });
+  it('devolve null quando nada é plausível', () => {
+    const results = [{ titulo: 'Totalmente Diferente', ano: 2010, tmdb_id: 1, media_type: 'movie' as const }];
+    expect(bestTmdbMatch({ titulo: 'Interestelar', ano: 2014 }, results)).toBeNull();
   });
 });

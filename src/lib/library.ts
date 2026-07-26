@@ -86,6 +86,50 @@ export function totalWatchMinutes(items: Item[], isSerialFn: (t: Tipo) => boolea
   }, 0);
 }
 
+// Normaliza um título para comparação (minúsculas, sem acento/pontuação).
+export function normTitle(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Similaridade simples entre dois títulos (sobreposição de palavras, 0..1).
+export function titleSimilarity(a: string, b: string): number {
+  const ta = new Set(normTitle(a).split(' ').filter(Boolean));
+  const tb = new Set(normTitle(b).split(' ').filter(Boolean));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let inter = 0;
+  ta.forEach((w) => { if (tb.has(w)) inter++; });
+  return inter / Math.max(ta.size, tb.size);
+}
+
+// Escolhe o melhor resultado do TMDB para um título da biblioteca.
+// Considera similaridade do nome e proximidade do ano. Devolve null se nada plausível.
+export function bestTmdbMatch<T extends { titulo: string; ano: number | null }>(
+  target: { titulo: string; ano?: number | null },
+  results: T[]
+): T | null {
+  let best: T | null = null;
+  let bestScore = 0;
+  for (const r of results) {
+    const sim = titleSimilarity(target.titulo, r.titulo);
+    let score = sim;
+    if (target.ano && r.ano) {
+      if (target.ano === r.ano) score += 0.3;
+      else if (Math.abs(target.ano - r.ano) <= 1) score += 0.1;
+    }
+    if (score > bestScore) { bestScore = score; best = r; }
+  }
+  // Exige alguma relação real de nome (evita casar títulos aleatórios).
+  const finalSim = best ? titleSimilarity(target.titulo, best.titulo) : 0;
+  const yearExact = !!(best && target.ano && best.ano === target.ano);
+  return best && (finalSim >= 0.5 || (finalSim > 0 && yearExact)) ? best : null;
+}
+
 export function formatMinutes(min: number): string {
   const m = Math.max(0, Math.round(min || 0));
   if (m < 60) return `${m} min`;
