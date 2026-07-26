@@ -6,8 +6,10 @@ interface ManageMembersModalProps {
   open: boolean;
   list: SharedList | null;
   currentEmail: string;
+  shareUrl: string;
   onClose: () => void;
   onSaveMembers: (emails: string[]) => void;
+  onTogglePublic: (publico: boolean) => void;
   onDeleteList: () => void;
   onLeaveList: () => void;
 }
@@ -16,15 +18,26 @@ export default function ManageMembersModal({
   open,
   list,
   currentEmail,
+  shareUrl,
   onClose,
   onSaveMembers,
+  onTogglePublic,
   onDeleteList,
   onLeaveList,
 }: ManageMembersModalProps) {
   const [novo, setNovo] = useState('');
+  const [copied, setCopied] = useState(false);
   if (!open || !list) return null;
 
   const isOwner = list.ownerEmail.toLowerCase() === currentEmail.toLowerCase();
+
+  const copyLink = () => {
+    try {
+      navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
 
   const addEmail = () => {
     const e = novo.trim().toLowerCase();
@@ -43,6 +56,36 @@ export default function ManageMembersModal({
         <button onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800">✕</button>
         <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">👥 {list.nome}</h3>
         <p className="text-xs text-slate-400 mb-4">Membros com acesso a esta lista.</p>
+
+        {/* Lista pública (link de leitura) */}
+        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-200">🔗 Lista pública</p>
+              <p className="text-[10px] text-slate-500">Qualquer pessoa com o link vê (só leitura) e pode copiar.</p>
+            </div>
+            {isOwner ? (
+              <button
+                onClick={() => onTogglePublic(!list.publico)}
+                className={`px-2.5 py-1.5 text-[10px] font-black uppercase rounded-lg border transition-colors ${
+                  list.publico ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' : 'bg-slate-900 text-slate-400 border-slate-700'
+                }`}
+              >
+                {list.publico ? 'Pública' : 'Privada'}
+              </button>
+            ) : (
+              <span className="text-[10px] text-slate-500">{list.publico ? 'pública' : 'privada'}</span>
+            )}
+          </div>
+          {list.publico && (
+            <div className="flex gap-2 mt-2">
+              <input readOnly value={shareUrl} className="flex-1 min-w-0 py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-[10px] focus:outline-none" />
+              <button onClick={copyLink} className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold rounded-lg whitespace-nowrap">
+                {copied ? '✓ Copiado' : 'Copiar link'}
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 mb-4">
           {list.memberEmails.map((m) => (

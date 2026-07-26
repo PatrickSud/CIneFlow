@@ -131,7 +131,12 @@ No primeiro login, se houver uma biblioteca antiga guardada no navegador, o app 
 
 ## Listas compartilhadas (família/amigos)
 
-Além da "Minha biblioteca" pessoal, dá para criar **listas compartilhadas**. No topo da aba lista há um seletor: escolha uma lista, crie uma nova (**＋ Nova lista**) e convide pessoas por email (**Membros**). Quem entrar no CineFlow com o mesmo email do Google vê e edita a lista. Ótimo para uma lista de "filmes em família". As regras de segurança (`firestore.rules`) garantem que só os membros de cada lista têm acesso — por isso, ao atualizar o Firestore, **republique as regras** (elas agora incluem a coleção `lists`).
+Além da "Minha biblioteca" pessoal, dá para criar **listas**. No topo da aba lista há um seletor: escolha uma lista, crie uma nova (**＋ Nova lista**) e, se quiser, compartilhe. Há duas formas de compartilhar (em **Membros**):
+
+- **Compartilhada (edição em conjunto):** convide por email; quem entrar com o mesmo email do Google vê e **edita** a lista junto com você.
+- **Pública (somente leitura + cópia):** ative "Lista pública" e copie o **link**. Qualquer pessoa com o link vê a lista (sem editar) e pode **copiar para a própria conta** — a cópia é independente e editável por ela. Bom para divulgar uma lista de recomendações.
+
+As regras de segurança (`firestore.rules`) garantem que membros têm acesso total e listas públicas podem ser apenas lidas. **Republique as regras** ao atualizar (elas incluem a coleção `lists` e a leitura pública).
 
 ## Tags
 

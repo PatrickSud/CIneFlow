@@ -82,6 +82,7 @@ export interface SharedList {
   ownerUid: string;
   ownerEmail: string;
   memberEmails: string[];
+  publico?: boolean; // lista pública: qualquer um com o link vê (só leitura)
 }
 
 /** Preferências aprendidas do que a pessoa gostou (para recomendação). */

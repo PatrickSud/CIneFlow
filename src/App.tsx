@@ -19,10 +19,11 @@ import { useAuth } from './auth/AuthContext';
 import { db } from './lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { SharedList } from './types';
-import { fetchSharedLists, createSharedList, loadListItems, saveListItems, setListMembers, deleteSharedList } from './lib/lists';
+import { fetchSharedLists, createSharedList, loadListItems, saveListItems, setListMembers, deleteSharedList, setListPublic, copyListToPersonal } from './lib/lists';
 import CreateListModal from './components/CreateListModal';
 import ManageMembersModal from './components/ManageMembersModal';
 import AddToListModal from './components/AddToListModal';
+import PublicListViewer from './components/PublicListViewer';
 import EpisodeTrackerModal from './components/EpisodeTrackerModal';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
@@ -61,6 +62,9 @@ export default function App() {
   const [sharedLists, setSharedLists] = useState<SharedList[]>([]);
   const [showCreateList, setShowCreateList] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [publicListId, setPublicListId] = useState<string | null>(() => {
+    try { return new URLSearchParams(window.location.search).get('list'); } catch { return null; }
+  });
 
   const refreshLists = useCallback(async () => {
     if (!user?.email) return;
@@ -202,6 +206,41 @@ export default function App() {
       showToast('Você saiu da lista.', 'info');
     } catch (e) {
       showToast('Não foi possível sair da lista.', 'error');
+    }
+  };
+
+  // Torna a lista ativa pública/privada
+  const handleTogglePublic = async (publico: boolean) => {
+    if (!activeList) return;
+    try {
+      await setListPublic(activeList.id, publico);
+      await refreshLists();
+      showToast(publico ? 'Lista pública ativada — partilhe o link!' : 'Lista voltou a privada.');
+    } catch (e) {
+      showToast('Não foi possível alterar a visibilidade.', 'error');
+    }
+  };
+
+  const closePublicViewer = () => {
+    setPublicListId(null);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('list');
+      window.history.replaceState({}, '', u.toString());
+    } catch {}
+  };
+
+  const handleCopyPublicList = async (nome: string, biblioteca: Item[]) => {
+    if (!user?.email) return;
+    try {
+      const id = await copyListToPersonal(user.uid, user.email, `${nome} (cópia)`, biblioteca.map(normalizeItem));
+      closePublicViewer();
+      await refreshLists();
+      setActiveSource(id);
+      setActiveTab('lista');
+      showToast('Lista copiada para a sua conta!');
+    } catch (e) {
+      showToast('Não foi possível copiar a lista.', 'error');
     }
   };
 
@@ -2073,8 +2112,10 @@ export default function App() {
         open={showMembers}
         list={activeList}
         currentEmail={user?.email || ''}
+        shareUrl={activeList ? `${window.location.origin}${window.location.pathname}?list=${activeList.id}` : ''}
         onClose={() => setShowMembers(false)}
         onSaveMembers={handleSaveMembers}
+        onTogglePublic={handleTogglePublic}
         onDeleteList={handleDeleteList}
         onLeaveList={handleLeaveList}
       />
@@ -2086,6 +2127,16 @@ export default function App() {
         onConfirm={(ids) => { if (addToListItem) handleAddToLists(addToListItem, ids); }}
         onCreateNew={() => { setAddToListItem(null); setShowCreateList(true); }}
       />
+
+      {/* ==================== VISUALIZADOR DE LISTA PÚBLICA (link) ==================== */}
+      {publicListId && (
+        <PublicListViewer
+          listId={publicListId}
+          canCopy={!!user}
+          onClose={closePublicViewer}
+          onCopy={handleCopyPublicList}
+        />
+      )}
 
       {/* ==================== TOAST DE NOTIFICAÇÃO ==================== */}
       <Toast toast={toast} />

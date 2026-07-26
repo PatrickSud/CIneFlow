@@ -29,6 +29,7 @@ export async function fetchSharedLists(email: string): Promise<SharedList[]> {
       ownerUid: data.ownerUid || '',
       ownerEmail: data.ownerEmail || '',
       memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [],
+      publico: !!data.publico,
     };
   });
 }
@@ -48,7 +49,52 @@ export async function createSharedList(
     ownerUid,
     ownerEmail: normEmail(ownerEmail),
     memberEmails,
+    publico: false,
     biblioteca: [],
+    updatedAt: Date.now(),
+  });
+  return ref.id;
+}
+
+/** Define se a lista é pública (link de leitura). */
+export async function setListPublic(listId: string, publico: boolean): Promise<void> {
+  await updateDoc(doc(db, 'lists', listId), { publico, updatedAt: Date.now() });
+}
+
+/** Lê o documento completo de uma lista (metadados + biblioteca). */
+export async function loadListDoc(
+  listId: string
+): Promise<{ meta: SharedList; biblioteca: Item[] } | null> {
+  const snap = await getDoc(doc(db, 'lists', listId));
+  if (!snap.exists()) return null;
+  const d = snap.data() as any;
+  return {
+    meta: {
+      id: snap.id,
+      nome: d.nome || 'Lista',
+      ownerUid: d.ownerUid || '',
+      ownerEmail: d.ownerEmail || '',
+      memberEmails: Array.isArray(d.memberEmails) ? d.memberEmails : [],
+      publico: !!d.publico,
+    },
+    biblioteca: Array.isArray(d.biblioteca) ? d.biblioteca : [],
+  };
+}
+
+/** Cria uma cópia pessoal (editável) de uma lista, com a biblioteca informada. */
+export async function copyListToPersonal(
+  ownerUid: string,
+  ownerEmail: string,
+  nome: string,
+  biblioteca: Item[]
+): Promise<string> {
+  const ref = await addDoc(collection(db, 'lists'), {
+    nome: nome.trim() || 'Cópia',
+    ownerUid,
+    ownerEmail: normEmail(ownerEmail),
+    memberEmails: [normEmail(ownerEmail)],
+    publico: false,
+    biblioteca,
     updatedAt: Date.now(),
   });
   return ref.id;

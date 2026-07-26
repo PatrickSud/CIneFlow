@@ -9,9 +9,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Listas compartilhadas: só membros (identificados por email) têm acesso.
+    // Listas: membros têm acesso total; listas públicas podem ser lidas por qualquer um.
     match /lists/{listId} {
-      allow read, update, delete: if request.auth != null
+      allow read: if resource.data.publico == true
+        || (request.auth != null && request.auth.token.email in resource.data.memberEmails);
+      allow update, delete: if request.auth != null
         && request.auth.token.email in resource.data.memberEmails;
       allow create: if request.auth != null
         && request.auth.token.email in request.resource.data.memberEmails;
