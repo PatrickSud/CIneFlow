@@ -5,6 +5,8 @@ import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, for
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
 import StarRating from './components/StarRating';
 import Toast from './components/Toast';
+import type { ToastState, ToastType } from './components/Toast';
+import type { Item, Tipo, Status, TmdbSearchResult, WatchProviders, CastMember } from './types';
 import ItemCard from './components/ItemCard';
 import Dashboard from './components/Dashboard';
 import DetailModal from './components/DetailModal';
@@ -16,16 +18,16 @@ import IosInstallHelp from './components/IosInstallHelp';
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
 // Gera IDs únicos e robustos (evita colisões de Date.now() em criações rápidas)
-const genId = (prefix = 'custom') =>
+const genId = (prefix: string = 'custom'): string =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
     ? `${prefix}-${crypto.randomUUID()}`
     : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function App() {
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Estado da Aplicação ---
-  const [items, setItems] = useState(() => {
+  const [items, setItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -57,47 +59,47 @@ export default function App() {
   // Modal de Adicionar / Editar
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('manual'); // manual | import
-  const [editingItem, setEditingItem] = useState(null);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   // Campos do Formulário Manual
   const [formTitulo, setFormTitulo] = useState('');
-  const [formTipo, setFormTipo] = useState('movie');
-  const [formAno, setFormAno] = useState(new Date().getFullYear());
+  const [formTipo, setFormTipo] = useState<Tipo>('movie');
+  const [formAno, setFormAno] = useState<number | string>(new Date().getFullYear());
   const [formGeneros, setFormGeneros] = useState('');
   const [formPosterUrl, setFormPosterUrl] = useState('');
-  const [formStatusAssistido, setFormStatusAssistido] = useState('nao_assistido');
-  const [formProgresso, setFormProgresso] = useState(0);
-  const [formTemporadas, setFormTemporadas] = useState(0);
-  const [formTemporadaAtual, setFormTemporadaAtual] = useState(1);
-  const [formEpisodioAtual, setFormEpisodioAtual] = useState(1);
+  const [formStatusAssistido, setFormStatusAssistido] = useState<Status>('nao_assistido');
+  const [formProgresso, setFormProgresso] = useState<number | string>(0);
+  const [formTemporadas, setFormTemporadas] = useState<number | string>(0);
+  const [formTemporadaAtual, setFormTemporadaAtual] = useState<number | string>(1);
+  const [formEpisodioAtual, setFormEpisodioAtual] = useState<number | string>(1);
   const [formNota, setFormNota] = useState(0);
   const [formNotasPessoais, setFormNotasPessoais] = useState('');
-  const [formTags, setFormTags] = useState([]);
+  const [formTags, setFormTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   // Metadados extras (enriquecidos via TMDB) que não têm campo visível no formulário
-  const emptyExtra = { overview: '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '', tmdb_id: null, tmdb_media_type: '' };
+  const emptyExtra: { overview: string; runtime: number; num_temporadas: number; num_episodios: number; elenco: CastMember[]; backdrop_url: string; tmdb_id: number | null; tmdb_media_type: string } = { overview: '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '', tmdb_id: null, tmdb_media_type: '' };
   const [formExtra, setFormExtra] = useState(emptyExtra);
 
   // Filtro por tags na Lista (interseção — precisa ter todas)
-  const [filterTags, setFilterTags] = useState([]);
+  const [filterTags, setFilterTags] = useState<string[]>([]);
 
   // Busca TMDB (preenchimento automático de metadados)
   const [tmdbQuery, setTmdbQuery] = useState('');
-  const [tmdbResults, setTmdbResults] = useState([]);
+  const [tmdbResults, setTmdbResults] = useState<TmdbSearchResult[]>([]);
   const [tmdbLoading, setTmdbLoading] = useState(false);
   const [tmdbError, setTmdbError] = useState('');
   const [tmdbSearched, setTmdbSearched] = useState(false);
   const [tmdbKeyInput, setTmdbKeyInput] = useState('');
   const [hasTmdbKey, setHasTmdbKey] = useState(() => Boolean(getTmdbKey()));
   const [showTmdbHelp, setShowTmdbHelp] = useState(false);
-  const [confirmState, setConfirmState] = useState({ open: false, id: null, titulo: '' });
+  const [confirmState, setConfirmState] = useState<{ open: boolean; id: string | null; titulo: string }>({ open: false, id: null, titulo: '' });
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [syncState, setSyncState] = useState({ running: false, done: 0, total: 0, updated: 0 });
   const [showLibMenu, setShowLibMenu] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
 
   // Busca web (TMDB) a partir da barra de pesquisa da página inicial
-  const [webResults, setWebResults] = useState([]);
+  const [webResults, setWebResults] = useState<TmdbSearchResult[]>([]);
   const [webLoading, setWebLoading] = useState(false);
   const [webError, setWebError] = useState('');
 
@@ -119,7 +121,7 @@ export default function App() {
       } catch (err) {
         if (active) {
           setWebResults([]);
-          setWebError(err.code === 'BAD_KEY' ? 'Chave TMDB inválida.' : 'Não foi possível buscar na web agora.');
+          setWebError((err as any).code === 'BAD_KEY' ? 'Chave TMDB inválida.' : 'Não foi possível buscar na web agora.');
         }
       } finally {
         if (active) setWebLoading(false);
@@ -129,8 +131,8 @@ export default function App() {
   }, [searchQuery, hasTmdbKey]);
 
   // Detalhes do título (modal de leitura)
-  const [detailItem, setDetailItem] = useState(null);
-  const [providers, setProviders] = useState(null);
+  const [detailItem, setDetailItem] = useState<Item | null>(null);
+  const [providers, setProviders] = useState<WatchProviders | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
 
   useEffect(() => {
@@ -153,10 +155,10 @@ export default function App() {
   const [matchStatus, setMatchStatus] = useState('nao_assistido'); 
   const [matchMinRating, setMatchMinRating] = useState(0); 
   const [matchCount, setMatchCount] = useState(3);
-  const [matchTags, setMatchTags] = useState([]);
+  const [matchTags, setMatchTags] = useState<string[]>([]);
   const [matchSmart, setMatchSmart] = useState(true);
-  const [matchHistory, setMatchHistory] = useState([]); // ids já sugeridos (evitar repetição)
-  const [matchedItems, setMatchedItems] = useState([]);
+  const [matchHistory, setMatchHistory] = useState<string[]>([]); // ids já sugeridos (evitar repetição)
+  const [matchedItems, setMatchedItems] = useState<Item[]>([]);
   const [isShuffling, setIsShuffling] = useState(false);
   const [matchMessage, setMatchMessage] = useState('');
 
@@ -164,14 +166,14 @@ export default function App() {
   useEffect(() => { setMatchHistory([]); }, [matchType, matchStatus, matchMinRating, matchTags, matchSmart]);
 
   // Notificações (Toast)
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  const showToast = (message, type = 'success') => {
+  const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
+  const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
   };
 
   // --- PWA / instalação no celular ---
-  const deferredPromptRef = useRef(null);
+  const deferredPromptRef = useRef<any>(null);
   const [canInstall, setCanInstall] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -182,9 +184,9 @@ export default function App() {
   useEffect(() => {
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
+      (window.navigator as any).standalone === true;
     const ua = window.navigator.userAgent || '';
-    const ios = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const ios = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
     const mobile =
       ios ||
       /Android/i.test(ua) ||
@@ -198,7 +200,7 @@ export default function App() {
     try { dismissed = localStorage.getItem('cineflow_install_dismissed') === '1'; } catch {}
     if (mobile && !standalone && !dismissed) setShowInstallBanner(true);
 
-    const onBeforeInstall = (e) => {
+    const onBeforeInstall = (e: any) => {
       e.preventDefault();
       deferredPromptRef.current = e;
       setCanInstall(true);
@@ -253,7 +255,7 @@ export default function App() {
     return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
-  const addFormTag = (raw) => {
+  const addFormTag = (raw: string) => {
     const label = String(raw).trim();
     if (!label) return;
     setFormTags(prev =>
@@ -262,12 +264,12 @@ export default function App() {
     setTagInput('');
   };
 
-  const removeFormTag = (label) => {
+  const removeFormTag = (label: string) => {
     setFormTags(prev => prev.filter(t => t !== label));
   };
 
   // Alterna uma tag em um array de seleção (usado no filtro da Lista e no Match)
-  const toggleTagIn = (setter, label) => {
+  const toggleTagIn = (setter: React.Dispatch<React.SetStateAction<string[]>>, label: string) => {
     setter(prev =>
       prev.some(t => t.toLowerCase() === label.toLowerCase())
         ? prev.filter(t => t.toLowerCase() !== label.toLowerCase())
@@ -278,7 +280,7 @@ export default function App() {
   // (itemHasAllTags vem de ./lib/library)
 
   // --- Funções do Formulário ---
-  const handleOpenAddModal = (mode) => {
+  const handleOpenAddModal = (mode?: string) => {
     setEditingItem(null);
     setFormTitulo('');
     setFormTipo('movie');
@@ -303,7 +305,7 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (item) => {
+  const handleOpenEditModal = (item: Item) => {
     setEditingItem(item);
     setFormTitulo(item.titulo);
     setFormTipo(item.tipo);
@@ -333,7 +335,7 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const handleSaveForm = (e) => {
+  const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitulo.trim()) {
       showToast('Por favor, introduza um título!', 'error');
@@ -376,7 +378,7 @@ export default function App() {
       setItems(prev => prev.map(item => item.id === editingItem.id ? { ...item, ...recordData } : item));
       showToast('Título atualizado com sucesso!');
     } else {
-      const newItem = {
+      const newItem: Item = {
         id: genId('custom'),
         ...recordData,
         data_adicao: new Date().toISOString()
@@ -388,14 +390,14 @@ export default function App() {
   };
 
   // --- Importar Ficheiro JSON ---
-  const handleJsonImport = (e) => {
-    const file = e.target.files[0];
+  const handleJsonImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = (event: ProgressEvent<FileReader>) => {
       try {
-        const parsed = JSON.parse(event.target.result);
+        const parsed = JSON.parse((event.target?.result as string));
         const rawList = parsed.biblioteca || (Array.isArray(parsed) ? parsed : null);
 
         if (!rawList || !Array.isArray(rawList)) {
@@ -406,7 +408,7 @@ export default function App() {
         setItems(prev => {
           const currentMap = new Map(prev.map(item => [item.id, item]));
 
-          rawList.forEach((raw, idx) => {
+          rawList.forEach((raw: any, idx: number) => {
             const id = raw.id || genId('imported');
             let status = raw.status_assistido || 'nao_assistido';
             let progresso = raw.progresso_porcentagem !== undefined ? Number(raw.progresso_porcentagem) : 0;
@@ -427,7 +429,7 @@ export default function App() {
               episodio_atual: Number(raw.episodio_atual || 0),
               nota: Number(raw.nota || raw.rating || 0),
               notas_pessoais: raw.notas_pessoais || raw.notes || '',
-              tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : [],
+              tags: Array.isArray(raw.tags) ? raw.tags.map((t: any) => String(t).trim()).filter(Boolean) : [],
               overview: raw.overview || '',
               runtime: Number(raw.runtime || 0),
               num_temporadas: Number(raw.num_temporadas || 0),
@@ -481,7 +483,7 @@ export default function App() {
     let cursor = 0;
     const CONC = 5; // requisições em paralelo
 
-    const processOne = async (idx) => {
+    const processOne = async (idx: number) => {
       const it = current[idx];
       try {
         let id = it.tmdb_id;
@@ -551,7 +553,7 @@ export default function App() {
     showToast('Chave TMDB guardada!');
   };
 
-  const handleTmdbSearch = async (e) => {
+  const handleTmdbSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const q = tmdbQuery.trim();
     if (!q) return;
@@ -564,10 +566,10 @@ export default function App() {
       setTmdbResults(results);
       if (results.length === 0) setTmdbError('Nenhum resultado encontrado no TMDB.');
     } catch (err) {
-      if (err.code === 'NO_KEY') {
+      if ((err as any).code === 'NO_KEY') {
         setHasTmdbKey(false);
         setTmdbError('Configure a sua chave TMDB para pesquisar.');
-      } else if (err.code === 'BAD_KEY') {
+      } else if ((err as any).code === 'BAD_KEY') {
         setTmdbError('Chave TMDB inválida. Verifique e tente novamente.');
       } else {
         setTmdbError('Não foi possível pesquisar agora. Verifique a sua ligação.');
@@ -578,7 +580,7 @@ export default function App() {
   };
 
   // Preenche o formulário manual com um resultado do TMDB (para revisão antes de guardar)
-  const fillFormFromTmdb = (r) => {
+  const fillFormFromTmdb = (r: TmdbSearchResult) => {
     setEditingItem(null);
     setFormTitulo(r.titulo);
     setFormTipo(r.tipo);
@@ -617,29 +619,29 @@ export default function App() {
   };
 
   // A partir da aba Buscar (modal já aberto)
-  const handlePickTmdb = (r) => {
+  const handlePickTmdb = (r: TmdbSearchResult) => {
     fillFormFromTmdb(r);
     showToast('Dados preenchidos — revise e guarde.', 'info');
   };
 
   // A partir dos resultados web da página inicial (abre o modal para revisão)
-  const handleAddFromApi = (r) => {
+  const handleAddFromApi = (r: TmdbSearchResult) => {
     fillFormFromTmdb(r);
     setIsModalOpen(true);
     showToast('Revise os dados e guarde na biblioteca.', 'info');
   };
 
   // Adiciona direto à biblioteca (1 toque), enriquecendo em segundo plano
-  const handleQuickAddFromApi = async (r) => {
+  const handleQuickAddFromApi = async (r: TmdbSearchResult) => {
     if (isInLibrary(r)) { showToast('Este título já está na biblioteca.', 'info'); return; }
-    let extra = { overview: r.overview || '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '' };
+    let extra: { overview: string; runtime: number; num_temporadas: number; num_episodios: number; elenco: CastMember[]; backdrop_url: string } = { overview: r.overview || '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '' };
     try {
       if (r.tmdb_id && r.media_type) {
         const d = await fetchTmdbDetails({ id: r.tmdb_id, mediaType: r.media_type });
         if (d) extra = { ...extra, ...d };
       }
     } catch {}
-    const newItem = {
+    const newItem: Item = {
       id: genId('custom'),
       titulo: r.titulo,
       tipo: r.tipo,
@@ -669,7 +671,7 @@ export default function App() {
   };
 
   // O título (aproximadamente) já está na biblioteca?
-  const isInLibrary = (r) =>
+  const isInLibrary = (r: TmdbSearchResult) =>
     items.some(
       (i) =>
         i.titulo.trim().toLowerCase() === r.titulo.trim().toLowerCase() &&
@@ -677,7 +679,7 @@ export default function App() {
     );
 
   // Deletar Item (abre confirmação estilizada)
-  const handleDeleteItem = (id, titulo) => {
+  const handleDeleteItem = (id: string, titulo: string) => {
     setConfirmState({ open: true, id, titulo });
   };
   const confirmDelete = () => {
@@ -689,13 +691,13 @@ export default function App() {
   };
 
   // --- Gerenciador de Tags (aplica a toda a biblioteca) ---
-  const renameTagGlobally = (oldLabel, newLabelRaw) => {
+  const renameTagGlobally = (oldLabel: string, newLabelRaw: string) => {
     const newLabel = String(newLabelRaw).trim();
     if (!newLabel || newLabel.toLowerCase() === oldLabel.toLowerCase()) return;
     setItems(prev => prev.map(item => {
       if (!Array.isArray(item.tags)) return item;
       let changed = false;
-      const next = [];
+      const next: string[] = [];
       item.tags.forEach(t => {
         const val = t.toLowerCase() === oldLabel.toLowerCase() ? newLabel : t;
         if (!next.some(x => x.toLowerCase() === val.toLowerCase())) next.push(val);
@@ -707,7 +709,7 @@ export default function App() {
     setMatchTags(prev => prev.map(t => (t.toLowerCase() === oldLabel.toLowerCase() ? newLabel : t)));
     showToast(`Tag "${oldLabel}" renomeada para "${newLabel}".`);
   };
-  const deleteTagGlobally = (label) => {
+  const deleteTagGlobally = (label: string) => {
     setItems(prev => prev.map(item =>
       Array.isArray(item.tags)
         ? { ...item, tags: item.tags.filter(t => t.toLowerCase() !== label.toLowerCase()) }
@@ -719,7 +721,7 @@ export default function App() {
   };
 
   // Alteração Rápida de Status
-  const handleToggleWatchedQuickly = (id) => {
+  const handleToggleWatchedQuickly = (id: string) => {
     setItems(prev => prev.map(item => {
       if (item.id === id) {
         const isCurrentlyWatched = item.status_assistido === 'assistido';
@@ -737,7 +739,7 @@ export default function App() {
   };
 
   // Classificação Rápida
-  const handleRateQuickly = (id, ratingValue) => {
+  const handleRateQuickly = (id: string, ratingValue: number) => {
     setItems(prev => prev.map(item => {
       if (item.id === id) {
         showToast(`Nota de ${ratingValue} estrelas guardada!`);
@@ -775,7 +777,7 @@ export default function App() {
         if (sortBy === 'title-asc') return a.titulo.localeCompare(b.titulo);
         if (sortBy === 'title-desc') return b.titulo.localeCompare(a.titulo);
         if (sortBy === 'rating-desc') return b.nota - a.nota;
-        if (sortBy === 'newest') return new Date(b.data_adicao) - new Date(a.data_adicao);
+        if (sortBy === 'newest') return new Date(b.data_adicao).getTime() - new Date(a.data_adicao).getTime();
         if (sortBy === 'ano-desc') return b.ano - a.ano;
         return 0;
       });
@@ -797,7 +799,7 @@ export default function App() {
       : '0.0';
 
     // Distribuição por gênero (top 8)
-    const genreCount = {};
+    const genreCount: Record<string, number> = {};
     items.forEach(i => {
       if (Array.isArray(i.generos)) {
         i.generos.forEach(g => {
@@ -812,7 +814,7 @@ export default function App() {
       .map(([nome, qtd]) => ({ nome, qtd }));
 
     // Distribuição por década
-    const decadeCount = {};
+    const decadeCount: Record<number, number> = {};
     items.forEach(i => {
       const ano = Number(i.ano);
       if (ano && !Number.isNaN(ano)) {
@@ -1196,7 +1198,7 @@ export default function App() {
                             src={r.poster_url || POSTER_FALLBACK}
                             alt={r.titulo}
                             className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
-                            onError={(e) => { e.target.onerror = null; e.target.src = POSTER_FALLBACK; }}
+                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
                           />
                           <div className="min-w-0 flex-1 space-y-1">
                             <div className="flex items-center gap-1.5">
@@ -1594,8 +1596,8 @@ export default function App() {
                             alt={r.titulo}
                             className="w-12 h-16 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
                             onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = POSTER_FALLBACK;
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = POSTER_FALLBACK;
                             }}
                           />
                           <div className="min-w-0 flex-1">
@@ -1646,7 +1648,7 @@ export default function App() {
                   />
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current.click()}
+                    onClick={() => fileInputRef.current?.click()}
                     className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
                   >
                     Procurar Ficheiro
@@ -1674,7 +1676,7 @@ export default function App() {
                     <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Tipo</label>
                     <select
                       value={formTipo}
-                      onChange={(e) => setFormTipo(e.target.value)}
+                      onChange={(e) => setFormTipo(e.target.value as Tipo)}
                       className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none"
                     >
                       {TYPES.map(t => (
@@ -1721,7 +1723,7 @@ export default function App() {
                     <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Estado de Visualização</label>
                     <select
                       value={formStatusAssistido}
-                      onChange={(e) => setFormStatusAssistido(e.target.value)}
+                      onChange={(e) => setFormStatusAssistido(e.target.value as Status)}
                       className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none"
                     >
                       <option value="nao_assistido">⏳ Pendente</option>
@@ -1849,7 +1851,7 @@ export default function App() {
                     value={formNotasPessoais}
                     onChange={(e) => setFormNotasPessoais(e.target.value)}
                     placeholder="Onde assistir, ideias, anotações..."
-                    rows="2"
+                    rows={2}
                     className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-700 text-xs focus:outline-none"
                   />
                 </div>

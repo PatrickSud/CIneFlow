@@ -17,6 +17,7 @@
   },
   "//": "Migração incremental: por enquanto o type-check cobre apenas os módulos já convertidos para .ts. Amplie o include conforme converter mais arquivos.",
   "include": [
+    "src/App.tsx",
     "src/types.ts",
     "src/vite-env.d.ts",
     "src/lib/library.ts",
