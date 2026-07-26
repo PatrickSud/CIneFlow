@@ -174,30 +174,33 @@ export default function ItemCard({
       )}
 
       {/* Footer do Card */}
-      <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80 flex items-center justify-between">
+      <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80 space-y-2.5">
         {/* Estrelas */}
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center">
           <StarRating value={item.nota || 0} onRate={(star) => onRate(item.id, star)} />
         </div>
 
-        {/* Opções */}
-        <div className="flex items-center space-x-1.5">
+        {/* Ações (padronizadas) */}
+        <div className="grid grid-cols-5 gap-1.5">
           <button
             onClick={() => onToggleWatched(item.id)}
-            className={`p-1 border rounded-lg text-xs transition-colors ${
+            className={`h-9 flex items-center justify-center rounded-xl border text-base transition-all active:scale-95 ${
               item.status_assistido === 'assistido'
-                ? 'bg-emerald-950 text-emerald-400 border-emerald-500/20'
-                : 'bg-slate-950 text-slate-500 border-slate-800 hover:text-white'
+                ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-emerald-400 hover:border-emerald-500/30'
             }`}
-            title="Alternar Visualização"
+            title={item.status_assistido === 'assistido' ? 'Marcar como não assistido' : 'Marcar como assistido'}
             aria-label="Alternar estado assistido"
           >
             ✓
           </button>
+
           <div className="relative">
             <button
               onClick={() => setPrioOpen((v) => !v)}
-              className={`p-1 border rounded-lg text-xs transition-colors ${prio.v > 0 ? prio.badge : 'bg-slate-950 text-slate-500 border-slate-800 hover:text-white'}`}
+              className={`w-full h-9 flex items-center justify-center rounded-xl border text-base transition-all active:scale-95 ${
+                prio.v > 0 ? prio.badge : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white hover:border-slate-600'
+              }`}
               title={`Prioridade: ${prio.label}`}
               aria-label="Definir prioridade"
             >
@@ -206,7 +209,7 @@ export default function ItemCard({
             {prioOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setPrioOpen(false)}></div>
-                <div className="absolute bottom-full right-0 mb-1 z-50 w-32 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1">
+                <div className="absolute bottom-full right-0 mb-1.5 z-50 w-36 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1">
                   {PRIORITIES.map((p) => {
                     const on = (item.prioridade || 0) === p.v;
                     return (
@@ -223,9 +226,10 @@ export default function ItemCard({
               </>
             )}
           </div>
+
           <button
             onClick={() => onAddToList(item)}
-            className="p-1 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-purple-400 border border-slate-800 rounded-lg text-xs"
+            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-purple-300 hover:border-purple-500/40 text-base transition-all active:scale-95"
             title="Adicionar a uma lista"
             aria-label="Adicionar a uma lista"
           >
@@ -233,16 +237,16 @@ export default function ItemCard({
           </button>
           <button
             onClick={() => onEdit(item)}
-            className="p-1 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-purple-400 border border-slate-800 rounded-lg text-xs"
-            title="Editar Ficha"
+            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-purple-300 hover:border-purple-500/40 text-base transition-all active:scale-95"
+            title="Editar ficha"
             aria-label="Editar ficha"
           >
             ✏️
           </button>
           <button
             onClick={() => onDelete(item.id, item.titulo)}
-            className="p-1 bg-slate-950 hover:bg-red-950/20 text-slate-600 hover:text-red-400 border border-slate-800 rounded-lg text-xs"
-            title="Remover"
+            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-500 hover:text-red-400 hover:border-red-500/40 text-base transition-all active:scale-95"
+            title="Remover da biblioteca"
             aria-label="Remover título da biblioteca"
           >
             🗑️
