@@ -170,6 +170,50 @@ export async function fetchTmdbDetails(
   };
 }
 
+// Converte um resultado bruto do TMDB no formato do CineFlow.
+function toResult(r: any, mediaType: 'movie' | 'tv', genres: { movie: GenreMap; tv: GenreMap }): TmdbSearchResult {
+  const mt: 'movie' | 'tv' = r.media_type === 'movie' || r.media_type === 'tv' ? r.media_type : mediaType;
+  const isMovie = mt === 'movie';
+  const rawTitle = isMovie ? r.title : r.name;
+  const date = isMovie ? r.release_date : r.first_air_date;
+  const ano = date ? Number(String(date).slice(0, 4)) : null;
+  const gMap = isMovie ? genres.movie : genres.tv;
+  const genreIds: number[] = r.genre_ids || [];
+  const generos = genreIds.map((id) => gMap[id]).filter(Boolean);
+  let tipo: Tipo = isMovie ? 'movie' : 'series';
+  if (genreIds.includes(99)) tipo = 'documentary';
+  else if (genreIds.includes(16) && r.original_language === 'ja') tipo = 'anime';
+  return {
+    key: `${mt}-${r.id}`,
+    tmdb_id: r.id,
+    media_type: mt,
+    tipo,
+    titulo: rawTitle || 'Título Desconhecido',
+    ano: ano && !Number.isNaN(ano) ? ano : null,
+    generos,
+    poster_url: r.poster_path ? `${IMG_BASE}${r.poster_path}` : '',
+    overview: r.overview || '',
+  };
+}
+
+/** Títulos recomendados pelo TMDB a partir de um título (id + tipo). */
+export async function fetchTmdbRecommendations(
+  params: { id: number; mediaType: 'movie' | 'tv' | string }
+): Promise<TmdbSearchResult[]> {
+  const { id, mediaType } = params;
+  const key = getTmdbKey();
+  if (!key || !id) return [];
+  const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
+  const res = await fetch(`${API_BASE}/${type}/${id}/recommendations?api_key=${key}&language=${LANG}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  let genres: { movie: GenreMap; tv: GenreMap } = { movie: {}, tv: {} };
+  try { genres = await loadGenres(key); } catch { /* segue sem nomes */ }
+  return (data.results || [])
+    .filter((r: any) => r.poster_path)
+    .map((r: any) => toResult(r, type, genres));
+}
+
 /** Temporadas de uma série (para o rastreamento por episódio). */
 export async function fetchTvSeasons(id: number): Promise<TvSeason[]> {
   const key = getTmdbKey();

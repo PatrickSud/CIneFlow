@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
+import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders, fetchTmdbRecommendations } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch, countWatchedEpisodes } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
 import StarRating from './components/StarRating';
@@ -283,6 +283,57 @@ export default function App() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [addToListItem, setAddToListItem] = useState<Item | null>(null);
   const [episodeItem, setEpisodeItem] = useState<Item | null>(null);
+
+  // Recomendações externas (TMDB) — descobrir títulos novos
+  const [recs, setRecs] = useState<TmdbSearchResult[]>([]);
+  const [recsLoading, setRecsLoading] = useState(false);
+  const [recsError, setRecsError] = useState('');
+  const [recsLoaded, setRecsLoaded] = useState(false);
+
+  const loadRecommendations = useCallback(async () => {
+    if (!hasTmdbKey) { setRecsError('Configure a chave do TMDB para receber recomendações.'); setRecsLoaded(true); return; }
+    setRecsLoading(true);
+    setRecsError('');
+    try {
+      // Sementes: títulos bem avaliados (>= 4) com vínculo TMDB; senão, os assistidos
+      const rated = items.filter((i) => i.tmdb_id && i.nota >= 4);
+      const seeds = (rated.length > 0 ? rated : items.filter((i) => i.tmdb_id && i.status_assistido === 'assistido'))
+        .sort((a, b) => (b.nota || 0) - (a.nota || 0))
+        .slice(0, 8);
+      if (seeds.length === 0) {
+        setRecs([]);
+        setRecsError('Avalie alguns títulos com 4-5 estrelas para receber recomendações personalizadas.');
+        return;
+      }
+      const lists = await Promise.all(
+        seeds.map((s) =>
+          fetchTmdbRecommendations({ id: s.tmdb_id as number, mediaType: s.tmdb_media_type || (isSerial(s.tipo) ? 'tv' : 'movie') }).catch(() => [])
+        )
+      );
+      // Agrega por tmdb_id, conta frequência, exclui o que já está na biblioteca
+      const inLib = new Set(items.filter((i) => i.tmdb_id).map((i) => i.tmdb_id));
+      const byId = new Map<number, { r: TmdbSearchResult; score: number }>();
+      lists.flat().forEach((r) => {
+        if (!r.tmdb_id || inLib.has(r.tmdb_id)) return;
+        const cur = byId.get(r.tmdb_id);
+        if (cur) cur.score += 1;
+        else byId.set(r.tmdb_id, { r, score: 1 });
+      });
+      const ranked = Array.from(byId.values()).sort((a, b) => b.score - a.score).slice(0, 24).map((x) => x.r);
+      setRecs(ranked);
+      if (ranked.length === 0) setRecsError('Não encontramos novas recomendações no momento.');
+    } catch (e) {
+      setRecsError('Não foi possível carregar recomendações agora.');
+    } finally {
+      setRecsLoading(false);
+      setRecsLoaded(true);
+    }
+  }, [items, hasTmdbKey]);
+
+  // Carrega as recomendações ao abrir a aba Descobrir (uma vez)
+  useEffect(() => {
+    if (activeTab === 'descobrir' && !recsLoaded && !recsLoading) loadRecommendations();
+  }, [activeTab, recsLoaded, recsLoading, loadRecommendations]);
 
   // Salva os episódios vistos e ajusta status/progresso automaticamente
   const handleSaveEpisodes = (itemId: string, map: Record<string, number[]>, totalEpisodios: number) => {
@@ -1690,6 +1741,77 @@ export default function App() {
         {/* ==================== TAB: METRICAS E PROGRESSO ==================== */}
         {activeTab === 'dashboard' && <Dashboard stats={stats} items={items} />}
 
+        {/* ==================== TAB: DESCOBRIR (recomendações externas) ==================== */}
+        {activeTab === 'descobrir' && (
+          <section className="space-y-6 max-w-5xl mx-auto">
+            <div className="bg-gradient-to-r from-purple-900/30 to-slate-900 p-6 rounded-2xl border border-purple-500/20 shadow-xl flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-white flex items-center">
+                  <span className="mr-2">✨</span> Descobrir
+                </h2>
+                <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                  Títulos novos, parecidos com os que você mais gostou (via TMDB). Não incluem o que já está na sua biblioteca.
+                </p>
+              </div>
+              <button
+                onClick={loadRecommendations}
+                disabled={recsLoading}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 whitespace-nowrap transition-all"
+              >
+                {recsLoading ? '...' : '↻ Atualizar'}
+              </button>
+            </div>
+
+            {recsLoading ? (
+              <div className="py-16 flex flex-col items-center gap-2">
+                <div className="w-8 h-8 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+                <p className="text-xs text-slate-400">Buscando recomendações…</p>
+              </div>
+            ) : recsError ? (
+              <div className="bg-slate-900/60 p-10 text-center rounded-2xl border border-slate-800">
+                <p className="text-sm text-slate-400">{recsError}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recs.map((r) => (
+                  <div key={r.key} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 flex gap-3 items-start">
+                    <img
+                      src={r.poster_url || POSTER_FALLBACK}
+                      alt={r.titulo}
+                      className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[8px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded uppercase font-bold">
+                          {typeEmoji(r.tipo)} {typeLabel(r.tipo)}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
+                      </div>
+                      <p className="text-xs font-bold text-white leading-tight line-clamp-2" title={r.titulo}>{r.titulo}</p>
+                      {r.generos.length > 0 && <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        <button
+                          onClick={() => handleQuickAddFromApi(r)}
+                          className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          + Adicionar
+                        </button>
+                        <button
+                          onClick={() => handleAddFromApi(r)}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          Detalhes…
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
       </main>
 
       {/* Footer */}
@@ -1710,10 +1832,10 @@ export default function App() {
       )}
 
       {/* ==================== MENU FLUTUANTE INFERIOR COMPACTO E MINIMALISTA ==================== */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-xs bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-full py-1.5 px-2 shadow-2xl flex justify-between items-center gap-1">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-full py-1.5 px-2 shadow-2xl flex justify-between items-center gap-1">
         <button
           onClick={() => setActiveTab('lista')}
-          className={`flex-1 py-1.5 px-2.5 rounded-full flex items-center justify-center space-x-1.5 text-xs font-semibold transition-all duration-200 ${
+          className={`flex-1 py-1.5 px-2 rounded-full flex items-center justify-center space-x-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'lista' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -1722,8 +1844,18 @@ export default function App() {
         </button>
 
         <button
+          onClick={() => setActiveTab('descobrir')}
+          className={`flex-1 py-1.5 px-2 rounded-full flex items-center justify-center space-x-1 text-xs font-semibold transition-all duration-200 ${
+            activeTab === 'descobrir' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>✨</span>
+          <span>Descobrir</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('sorteador')}
-          className={`flex-1 py-1.5 px-2.5 rounded-full flex items-center justify-center space-x-1.5 text-xs font-semibold transition-all duration-200 ${
+          className={`flex-1 py-1.5 px-2 rounded-full flex items-center justify-center space-x-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'sorteador' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -1733,7 +1865,7 @@ export default function App() {
 
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 py-1.5 px-2.5 rounded-full flex items-center justify-center space-x-1.5 text-xs font-semibold transition-all duration-200 ${
+          className={`flex-1 py-1.5 px-2 rounded-full flex items-center justify-center space-x-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'dashboard' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
