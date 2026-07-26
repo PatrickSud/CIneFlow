@@ -1,6 +1,6 @@
 // Cartão de um título na lista.
 import type { Item } from '../types';
-import { typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from '../lib/contentTypes';
+import { typeLabel, typeEmoji, isSerial, POSTER_FALLBACK, priorityInfo } from '../lib/contentTypes';
 import StarRating from './StarRating';
 
 interface ItemCardProps {
@@ -12,7 +12,6 @@ interface ItemCardProps {
   onDelete: (id: string, titulo: string) => void;
   onTagClick: (tag: string) => void;
   onAddToList: (item: Item) => void;
-  onCyclePriority: (id: string) => void;
 }
 
 export default function ItemCard({
@@ -24,13 +23,8 @@ export default function ItemCard({
   onDelete,
   onTagClick,
   onAddToList,
-  onCyclePriority,
 }: ItemCardProps) {
-  const prio = item.prioridade || 0;
-  const prioClass =
-    prio === 2 ? 'bg-red-950 text-red-400 border-red-500/30' :
-    prio === 1 ? 'bg-amber-950 text-amber-400 border-amber-500/30' :
-    'bg-slate-950 text-slate-600 border-slate-800 hover:text-white';
+  const prio = priorityInfo(item.prioridade);
   return (
     <div className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group">
 
@@ -61,7 +55,14 @@ export default function ItemCard({
         {/* Info do Card */}
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
+              {prio.v > 0 && (
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${prio.badge}`} title={`Prioridade: ${prio.label}`}>
+                  {prio.dot} {prio.label}
+                </span>
+              )}
+            </div>
 
             {/* Estado Badge */}
             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
@@ -188,14 +189,6 @@ export default function ItemCard({
             aria-label="Alternar estado assistido"
           >
             ✓
-          </button>
-          <button
-            onClick={() => onCyclePriority(item.id)}
-            className={`p-1 border rounded-lg text-xs transition-colors ${prioClass}`}
-            title={`Prioridade: ${prio === 2 ? 'alta' : prio === 1 ? 'média' : 'nenhuma'} (clique para alternar)`}
-            aria-label="Alternar prioridade na watchlist"
-          >
-            🚩
           </button>
           <button
             onClick={() => onAddToList(item)}

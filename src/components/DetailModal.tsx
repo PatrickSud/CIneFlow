@@ -1,6 +1,6 @@
 // Modal de detalhes de um título (sinopse, elenco, onde assistir).
 import type { Item, WatchProviders, Provider } from '../types';
-import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK } from '../lib/contentTypes';
+import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK, PRIORITIES } from '../lib/contentTypes';
 import { countWatchedEpisodes } from '../lib/library';
 
 interface DetailModalProps {
@@ -11,6 +11,7 @@ interface DetailModalProps {
   onClose: () => void;
   onEdit: (item: Item) => void;
   onOpenEpisodes: (item: Item) => void;
+  onSetPriority: (id: string, value: number) => void;
 }
 
 export default function DetailModal({
@@ -21,6 +22,7 @@ export default function DetailModal({
   onClose,
   onEdit,
   onOpenEpisodes,
+  onSetPriority,
 }: DetailModalProps) {
   const episodiosVistos = countWatchedEpisodes(item.episodios_vistos);
   const runtime = item.runtime ?? 0;
@@ -124,6 +126,27 @@ export default function DetailModal({
               ))}
             </div>
           )}
+
+          {/* Prioridade (watchlist) */}
+          <div>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Prioridade</h4>
+            <div className="flex gap-1.5 flex-wrap">
+              {PRIORITIES.map((p) => {
+                const on = (item.prioridade || 0) === p.v;
+                return (
+                  <button
+                    key={p.v}
+                    onClick={() => onSetPriority(item.id, p.v)}
+                    className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                      on ? p.chip : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-600'
+                    }`}
+                  >
+                    {p.v > 0 ? `${p.dot} ` : ''}{p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Sinopse */}
           {item.overview ? (

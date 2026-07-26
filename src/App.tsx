@@ -1057,15 +1057,10 @@ export default function App() {
     }));
   };
 
-  // Alterna a prioridade na watchlist: nenhuma -> média -> alta -> nenhuma
-  const handleCyclePriority = (id: string) => {
-    setItems(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const next = ((item.prioridade || 0) + 1) % 3;
-      const label = next === 2 ? 'alta' : next === 1 ? 'média' : 'nenhuma';
-      showToast(`Prioridade: ${label}`, 'info');
-      return { ...item, prioridade: next };
-    }));
+  // Define a prioridade do título (0 nenhuma, 1 baixa, 2 média, 3 alta)
+  const handleSetPriority = (id: string, value: number) => {
+    setItems(prev => prev.map(item => (item.id === id ? { ...item, prioridade: value } : item)));
+    setDetailItem((d) => (d && d.id === id ? { ...d, prioridade: value } : d));
   };
 
   // --- Filtros ---
@@ -1542,7 +1537,6 @@ export default function App() {
                     onDelete={handleDeleteItem}
                     onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
                     onAddToList={(it) => setAddToListItem(it)}
-                    onCyclePriority={handleCyclePriority}
                   />
                 ))}
               </div>
@@ -2059,6 +2053,7 @@ export default function App() {
           onClose={() => setDetailItem(null)}
           onEdit={handleOpenEditModal}
           onOpenEpisodes={(it) => { setDetailItem(null); setEpisodeItem(it); }}
+          onSetPriority={handleSetPriority}
         />
       )}
 
