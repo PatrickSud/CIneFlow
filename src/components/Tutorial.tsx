@@ -11,7 +11,7 @@ const SLIDES: Slide[] = [
   {
     emoji: '🍿',
     title: 'Bem-vindo ao CineFlow',
-    text: 'A sua biblioteca pessoal de filmes e séries. Organize o que já viu, o que está a ver e o que quer ver — em qualquer dispositivo.',
+    text: 'A sua biblioteca pessoal de filmes e séries. Organize o que já viu, o que está vendo e o que quer ver — em qualquer dispositivo.',
   },
   {
     emoji: '🔎',
@@ -31,7 +31,7 @@ const SLIDES: Slide[] = [
   {
     emoji: '📲',
     title: 'Instale no celular',
-    text: 'No telemóvel, toque em "Instalar App" para usar o CineFlow em tela cheia, como um aplicativo. Tudo fica sincronizado na sua conta.',
+    text: 'No celular, toque em "Instalar App" para usar o CineFlow em tela cheia, como um aplicativo. Tudo fica sincronizado na sua conta.',
   },
 ];
 

@@ -39,7 +39,7 @@ export default function LoginScreen() {
         <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">A Sua Biblioteca de Filmes e Séries</p>
 
         <p className="text-sm text-slate-400 mt-6 mb-6 leading-relaxed">
-          Entre com a sua conta Google para aceder à sua biblioteca em qualquer dispositivo.
+          Entre com a sua conta Google para acessar a sua biblioteca em qualquer dispositivo.
         </p>
 
         <button
@@ -63,7 +63,7 @@ export default function LoginScreen() {
         {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
 
         <p className="text-[10px] text-slate-600 mt-8">
-          Os seus dados ficam guardados de forma segura na sua conta.
+          Os seus dados ficam salvos de forma segura na sua conta.
         </p>
       </div>
     </div>

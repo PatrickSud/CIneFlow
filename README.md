@@ -129,6 +129,10 @@ No primeiro login, se houver uma biblioteca antiga guardada no navegador, o app 
 
 > Observação: as chaves web do Firebase (em `firebase.ts`) são públicas por design — a segurança vem das regras acima, não do sigilo da chave.
 
+## Listas compartilhadas (família/amigos)
+
+Além da "Minha biblioteca" pessoal, dá para criar **listas compartilhadas**. No topo da aba lista há um seletor: escolha uma lista, crie uma nova (**＋ Nova lista**) e convide pessoas por email (**Membros**). Quem entrar no CineFlow com o mesmo email do Google vê e edita a lista. Ótimo para uma lista de "filmes em família". As regras de segurança (`firestore.rules`) garantem que só os membros de cada lista têm acesso — por isso, ao atualizar o Firestore, **republique as regras** (elas agora incluem a coleção `lists`).
+
 ## Tags
 
 Cada título pode ter tags livres (ex.: "Família", "Oliver", "Domingo"). Crie-as no formulário (digite e Enter, ou clique numa tag já existente). Depois é só usá-las:

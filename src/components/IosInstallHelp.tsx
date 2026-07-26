@@ -7,7 +7,7 @@ interface IosInstallHelpProps {
 }
 
 const STEPS: { n: number; content: ReactNode }[] = [
-  { n: 1, content: <>Toque no botão <strong>Partilhar</strong> (o quadrado com a seta para cima), na barra do Safari.</> },
+  { n: 1, content: <>Toque no botão <strong>Compartilhar</strong> (o quadrado com a seta para cima), na barra do Safari.</> },
   { n: 2, content: <>Deslize e toque em <strong>“Adicionar à Tela de Início”</strong>.</> },
   { n: 3, content: <>Confirme em <strong>“Adicionar”</strong>. O CineFlow aparece como um app na sua tela.</> },
 ];

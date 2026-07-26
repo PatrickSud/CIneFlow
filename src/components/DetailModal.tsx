@@ -150,7 +150,7 @@ export default function DetailModal({
             <div>
               <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Onde assistir (Brasil)</h4>
               {providersLoading ? (
-                <p className="text-[11px] text-slate-500">A procurar...</p>
+                <p className="text-[11px] text-slate-500">Procurando...</p>
               ) : hasProviders ? (
                 <div className="space-y-2">
                   {providerGroups.map(([lbl, list]) =>

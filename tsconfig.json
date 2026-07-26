@@ -36,6 +36,9 @@
     "src/components/LoginScreen.tsx",
     "src/components/Tutorial.tsx",
     "src/auth/AuthContext.tsx",
-    "src/lib/firebase.ts"
+    "src/lib/firebase.ts",
+    "src/lib/lists.ts",
+    "src/components/CreateListModal.tsx",
+    "src/components/ManageMembersModal.tsx"
   ]
 }

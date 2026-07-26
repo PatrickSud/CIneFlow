@@ -64,6 +64,15 @@ export interface Stats {
   tempoAssistidoMin: number;
 }
 
+/** Uma lista compartilhada (família/amigos). */
+export interface SharedList {
+  id: string;
+  nome: string;
+  ownerUid: string;
+  ownerEmail: string;
+  memberEmails: string[];
+}
+
 /** Preferências aprendidas do que a pessoa gostou (para recomendação). */
 export interface Preferences {
   genreWeight: Record<string, number>;

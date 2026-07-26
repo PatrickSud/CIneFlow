@@ -191,7 +191,7 @@ export default function AddEditModal(props: AddEditModalProps) {
                         >
                           themoviedb.org
                         </a>{' '}
-                        (API Key v3). Ela fica guardada apenas no seu navegador.
+                        (API Key v3). Ela fica salva apenas no seu navegador.
                       </p>
                       <div className="flex gap-2 pt-1">
                         <input
@@ -206,7 +206,7 @@ export default function AddEditModal(props: AddEditModalProps) {
                           onClick={handleSaveTmdbKey}
                           className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase rounded-xl transition-all"
                         >
-                          Guardar
+                          Salvar
                         </button>
                       </div>
                     </div>
@@ -291,7 +291,7 @@ export default function AddEditModal(props: AddEditModalProps) {
                   <svg className="w-10 h-10 text-purple-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="text-xs text-slate-300 font-semibold">Selecione o ficheiro de biblioteca `.json`</p>
+                  <p className="text-xs text-slate-300 font-semibold">Selecione o arquivo de biblioteca `.json`</p>
 
                   <input
                     type="file"
@@ -305,7 +305,7 @@ export default function AddEditModal(props: AddEditModalProps) {
                     onClick={() => fileInputRef.current?.click()}
                     className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
                   >
-                    Procurar Ficheiro
+                    Procurar Arquivo
                   </button>
                 </div>
               </div>
@@ -351,7 +351,7 @@ export default function AddEditModal(props: AddEditModalProps) {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Géneros (separados por vírgula)</label>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Gêneros (separados por vírgula)</label>
                   <input
                     type="text"
                     value={formGeneros}
@@ -522,7 +522,7 @@ export default function AddEditModal(props: AddEditModalProps) {
                     type="submit"
                     className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
                   >
-                    Guardar
+                    Salvar
                   </button>
                 </div>
 

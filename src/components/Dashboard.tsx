@@ -92,7 +92,7 @@ export default function Dashboard({ stats, items }: DashboardProps) {
         {/* Distribuição por Gênero */}
         <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">🎭 Principais Géneros</h4>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white">🎭 Principais Gêneros</h4>
             <span className="text-[10px] bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 font-black">
               Nota média ★ {stats.avgRating}
             </span>
@@ -115,7 +115,7 @@ export default function Dashboard({ stats, items }: DashboardProps) {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-slate-500 italic">Sem géneros registados ainda.</p>
+            <p className="text-xs text-slate-500 italic">Sem gêneros registrados ainda.</p>
           )}
         </div>
 
@@ -140,7 +140,7 @@ export default function Dashboard({ stats, items }: DashboardProps) {
               })}
             </div>
           ) : (
-            <p className="text-xs text-slate-500 italic">Sem anos registados ainda.</p>
+            <p className="text-xs text-slate-500 italic">Sem anos registrados ainda.</p>
           )}
         </div>
 

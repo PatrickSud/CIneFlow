@@ -35,7 +35,7 @@ export default function TagManagerModal({
         >
           ✕
         </button>
-        <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">⚙️ Gerir Tags</h3>
+        <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">⚙️ Gerenciar Tags</h3>
         <p className="text-xs text-slate-400 mb-4">Renomear ou apagar afeta todos os títulos que usam a tag.</p>
         {allTags.length === 0 ? (
           <p className="text-xs text-slate-500 italic">Ainda não há tags. Crie-as ao adicionar ou editar um título.</p>

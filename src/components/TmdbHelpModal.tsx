@@ -7,13 +7,13 @@ interface TmdbHelpModalProps {
 }
 
 const STEPS: { n: number; content: ReactNode }[] = [
-  { n: 1, content: <>Abra <a href="https://www.themoviedb.org/signup" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/signup</a> e crie uma conta gratuita (nome de utilizador, email e senha).</> },
+  { n: 1, content: <>Abra <a href="https://www.themoviedb.org/signup" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/signup</a> e crie uma conta gratuita (nome de usuário, email e senha).</> },
   { n: 2, content: <>Confirme a conta pelo email que o site enviar (verifique também o spam).</> },
   { n: 3, content: <>Já com sessão iniciada, abra <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/settings/api</a>.</> },
   { n: 4, content: <>Clique em <strong>“Criar”</strong> e escolha a opção <strong>“Developer”</strong> (uso pessoal).</> },
   { n: 5, content: <>Aceite os termos e preencha o formulário. Pode usar dados simples: tipo <em>Website</em>, nome “CineFlow”, URL <em>http://localhost</em> e uma descrição como “uso pessoal”.</> },
   { n: 6, content: <>Na página que aparece, copie o valor <strong>“Chave da API (v3 auth)”</strong> — uma sequência de letras e números.</> },
-  { n: 7, content: <>Volte aqui, cole a chave no campo e toque em <strong>Guardar</strong>. Pronto! 🎉</> },
+  { n: 7, content: <>Volte aqui, cole a chave no campo e toque em <strong>Salvar</strong>. Pronto! 🎉</> },
 ];
 
 export default function TmdbHelpModal({ open, onClose }: TmdbHelpModalProps) {

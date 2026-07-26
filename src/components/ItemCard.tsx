@@ -84,7 +84,7 @@ export default function ItemCard({
               ))}
             </div>
           ) : (
-            <span className="text-[10px] text-slate-600 italic">Sem géneros</span>
+            <span className="text-[10px] text-slate-600 italic">Sem gêneros</span>
           )}
 
           {/* Tags */}

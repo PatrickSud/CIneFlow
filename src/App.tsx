@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
@@ -18,6 +18,10 @@ import Tutorial from './components/Tutorial';
 import { useAuth } from './auth/AuthContext';
 import { db } from './lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import type { SharedList } from './types';
+import { fetchSharedLists, createSharedList, loadListItems, saveListItems, setListMembers, deleteSharedList } from './lib/lists';
+import CreateListModal from './components/CreateListModal';
+import ManageMembersModal from './components/ManageMembersModal';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -49,6 +53,20 @@ export default function App() {
   const skipSave = useRef(false);   // pula a gravação logo após aplicar dados remotos
   const onboardedRef = useRef(true);
 
+  // Listas compartilhadas (família/amigos)
+  const [activeSource, setActiveSource] = useState<string>('personal'); // 'personal' | listId
+  const [sharedLists, setSharedLists] = useState<SharedList[]>([]);
+  const [showCreateList, setShowCreateList] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
+
+  const refreshLists = useCallback(async () => {
+    if (!user?.email) return;
+    try { setSharedLists(await fetchSharedLists(user.email)); } catch (e) { console.error(e); }
+  }, [user]);
+  useEffect(() => { refreshLists(); }, [refreshLists]);
+
+  const activeList = activeSource === 'personal' ? null : (sharedLists.find((l) => l.id === activeSource) || null);
+
   // Carrega a biblioteca do usuário ao entrar
   useEffect(() => {
     if (!user) return;
@@ -56,6 +74,15 @@ export default function App() {
     setLibLoaded(false);
     (async () => {
       try {
+        // Fonte = uma lista compartilhada
+        if (activeSource !== 'personal') {
+          const list = await loadListItems(activeSource);
+          if (!active) return;
+          skipSave.current = true;
+          setItems(list.map(normalizeItem));
+          return;
+        }
+        // Fonte = biblioteca pessoal
         const ref = doc(db, 'users', user.uid);
         const snap = await getDoc(ref);
         if (!active) return;
@@ -79,27 +106,31 @@ export default function App() {
           else setShowTutorial(true);
         }
       } catch (e) {
-        console.error('Falha ao carregar a biblioteca do Firestore.', e);
+        console.error('Falha ao carregar a biblioteca.', e);
       } finally {
         if (active) setLibLoaded(true);
       }
     })();
     return () => { active = false; };
-  }, [user]);
+  }, [user, activeSource]);
 
   // Grava a biblioteca no Firestore quando muda (com debounce)
   useEffect(() => {
     if (!user || !libLoaded) return;
     if (skipSave.current) { skipSave.current = false; return; }
     const t = setTimeout(() => {
-      setDoc(
-        doc(db, 'users', user.uid),
-        { biblioteca: items, onboarded: onboardedRef.current, updatedAt: Date.now() },
-        { merge: true }
-      ).catch((e: any) => console.error('Falha ao guardar no Firestore.', e));
+      if (activeSource !== 'personal') {
+        saveListItems(activeSource, items).catch((e: any) => console.error('Falha ao salvar a lista.', e));
+      } else {
+        setDoc(
+          doc(db, 'users', user.uid),
+          { biblioteca: items, onboarded: onboardedRef.current, updatedAt: Date.now() },
+          { merge: true }
+        ).catch((e: any) => console.error('Falha ao salvar no Firestore.', e));
+      }
     }, 800);
     return () => clearTimeout(t);
-  }, [items, user, libLoaded]);
+  }, [items, user, libLoaded, activeSource]);
 
   // Migração da biblioteca local para a conta
   const confirmMigrate = () => {
@@ -119,6 +150,55 @@ export default function App() {
     onboardedRef.current = true;
     if (user) {
       setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }).catch(() => {});
+    }
+  };
+
+  // --- Handlers de listas compartilhadas ---
+  const handleCreateList = async (nome: string, members: string[]) => {
+    if (!user?.email) return;
+    try {
+      const id = await createSharedList(user.uid, user.email, nome, members);
+      setShowCreateList(false);
+      await refreshLists();
+      setActiveSource(id);
+      showToast('Lista compartilhada criada!');
+    } catch (e) {
+      showToast('Não foi possível criar a lista.', 'error');
+    }
+  };
+  const handleSaveMembers = async (emails: string[]) => {
+    if (!activeList) return;
+    try {
+      await setListMembers(activeList.id, emails);
+      await refreshLists();
+      showToast('Membros atualizados.');
+    } catch (e) {
+      showToast('Não foi possível atualizar os membros.', 'error');
+    }
+  };
+  const handleDeleteList = async () => {
+    if (!activeList) return;
+    try {
+      await deleteSharedList(activeList.id);
+      setShowMembers(false);
+      setActiveSource('personal');
+      await refreshLists();
+      showToast('Lista apagada.', 'info');
+    } catch (e) {
+      showToast('Não foi possível apagar a lista.', 'error');
+    }
+  };
+  const handleLeaveList = async () => {
+    if (!activeList || !user?.email) return;
+    const email = user.email;
+    try {
+      await setListMembers(activeList.id, activeList.memberEmails.filter((m) => m.toLowerCase() !== email.toLowerCase()));
+      setShowMembers(false);
+      setActiveSource('personal');
+      await refreshLists();
+      showToast('Você saiu da lista.', 'info');
+    } catch (e) {
+      showToast('Não foi possível sair da lista.', 'error');
     }
   };
 
@@ -412,7 +492,7 @@ export default function App() {
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitulo.trim()) {
-      showToast('Por favor, introduza um título!', 'error');
+      showToast('Por favor, digite um título!', 'error');
       return;
     }
 
@@ -463,7 +543,7 @@ export default function App() {
     setIsModalOpen(false);
   };
 
-  // --- Importar Ficheiro JSON ---
+  // --- Importar Arquivo JSON ---
   const handleJsonImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -518,14 +598,14 @@ export default function App() {
           return Array.from(currentMap.values());
         });
 
-        showToast(`${rawList.length} registos integrados com sucesso!`);
+        showToast(`${rawList.length} registros integrados com sucesso!`);
         setIsModalOpen(false);
       } catch (err) {
-        showToast('Falha ao processar o ficheiro JSON.', 'error');
+        showToast('Falha ao processar o arquivo JSON.', 'error');
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // permite reimportar o mesmo ficheiro
+    e.target.value = ''; // permite reimportar o mesmo arquivo
   };
 
   // --- Exportar Biblioteca (backup) ---
@@ -624,7 +704,7 @@ export default function App() {
     setTmdbKey(k);
     setHasTmdbKey(true);
     setTmdbKeyInput('');
-    showToast('Chave TMDB guardada!');
+    showToast('Chave TMDB salva!');
   };
 
   const handleTmdbSearch = async (e?: React.FormEvent) => {
@@ -646,14 +726,14 @@ export default function App() {
       } else if ((err as any).code === 'BAD_KEY') {
         setTmdbError('Chave TMDB inválida. Verifique e tente novamente.');
       } else {
-        setTmdbError('Não foi possível pesquisar agora. Verifique a sua ligação.');
+        setTmdbError('Não foi possível pesquisar agora. Verifique a sua conexão.');
       }
     } finally {
       setTmdbLoading(false);
     }
   };
 
-  // Preenche o formulário manual com um resultado do TMDB (para revisão antes de guardar)
+  // Preenche o formulário manual com um resultado do TMDB (para revisão antes de salvar)
   const fillFormFromTmdb = (r: TmdbSearchResult) => {
     setEditingItem(null);
     setFormTitulo(r.titulo);
@@ -816,7 +896,7 @@ export default function App() {
   const handleRateQuickly = (id: string, ratingValue: number) => {
     setItems(prev => prev.map(item => {
       if (item.id === id) {
-        showToast(`Nota de ${ratingValue} estrelas guardada!`);
+        showToast(`Nota de ${ratingValue} estrelas salva!`);
         return { ...item, nota: ratingValue };
       }
       return item;
@@ -1010,7 +1090,7 @@ export default function App() {
                     </button>
 
                     <div className="my-1 border-t border-slate-800"></div>
-                    <p className="px-3 pt-1 pb-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Gerir</p>
+                    <p className="px-3 pt-1 pb-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Gerenciar</p>
                     <button role="menuitem" onClick={() => { setShowLibMenu(false); handleOpenAddModal('tmdb'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
                       <span>⚙️</span> Configurar chave TMDB
                     </button>
@@ -1025,7 +1105,7 @@ export default function App() {
             {user && (
               <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-800">
                 {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName || 'Utilizador'} className="w-7 h-7 rounded-full border border-slate-700" title={user.displayName || user.email || ''} referrerPolicy="no-referrer" />
+                  <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-7 h-7 rounded-full border border-slate-700" title={user.displayName || user.email || ''} referrerPolicy="no-referrer" />
                 ) : (
                   <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-[11px] font-black text-white" title={user.displayName || user.email || ''}>
                     {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
@@ -1033,8 +1113,8 @@ export default function App() {
                 )}
                 <button
                   onClick={() => logout()}
-                  title="Terminar sessão"
-                  aria-label="Terminar sessão"
+                  title="Sair"
+                  aria-label="Sair"
                   className="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-sm rounded-xl border border-slate-700 transition-all"
                 >
                   ⏻
@@ -1051,7 +1131,7 @@ export default function App() {
         <div className="bg-gradient-to-r from-purple-700 to-indigo-700 text-white px-4 py-3 flex items-center gap-3 shadow-lg">
           <span className="text-xl">📲</span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold leading-tight">Instale o CineFlow no seu telemóvel</p>
+            <p className="text-xs font-bold leading-tight">Instale o CineFlow no seu celular</p>
             <p className="text-[10px] text-purple-100/90 leading-tight">Acesso rápido, tela cheia e uso offline.</p>
           </div>
           <button
@@ -1076,7 +1156,39 @@ export default function App() {
         {/* ==================== TAB: LISTA ==================== */}
         {activeTab === 'lista' && (
           <section className="space-y-6">
-            
+
+            {/* Seletor de biblioteca / listas compartilhadas */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-lg">{activeSource === 'personal' ? '📚' : '👥'}</span>
+              <select
+                value={activeSource}
+                onChange={(e) => setActiveSource(e.target.value)}
+                className="py-1.5 px-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-100 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-purple-500"
+              >
+                <option value="personal">Minha biblioteca</option>
+                {sharedLists.map((l) => (
+                  <option key={l.id} value={l.id}>👥 {l.nome}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowCreateList(true)}
+                className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-purple-500/40 text-slate-300 hover:text-purple-300 text-xs font-bold rounded-xl transition-colors"
+              >
+                ＋ Nova lista
+              </button>
+              {activeList && (
+                <button
+                  onClick={() => setShowMembers(true)}
+                  className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-purple-500/40 text-slate-300 hover:text-purple-300 text-xs font-bold rounded-xl transition-colors"
+                >
+                  👥 Membros ({activeList.memberEmails.length})
+                </button>
+              )}
+              {activeSource !== 'personal' && (
+                <span className="text-[10px] text-purple-400 font-semibold">lista compartilhada</span>
+              )}
+            </div>
+
             {/* Bloco de Busca Avançada */}
             <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800/80 shadow-xl space-y-4">
               <div className="relative">
@@ -1087,7 +1199,7 @@ export default function App() {
                 </span>
                 <input
                   type="text"
-                  placeholder={hasTmdbKey ? 'Pesquisar na biblioteca e na web (TMDB)...' : 'Pesquisar por título, notas, género ou tag...'}
+                  placeholder={hasTmdbKey ? 'Pesquisar na biblioteca e na web (TMDB)...' : 'Pesquisar por título, notas, gênero ou tag...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full pl-11 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
@@ -1095,7 +1207,7 @@ export default function App() {
               </div>
 
               {/* Grid Filtros Rápidos */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800/50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-800/50">
                 
                 {/* Categoria */}
                 <div>
@@ -1169,50 +1281,50 @@ export default function App() {
                   </select>
                 </div>
 
-              </div>
+                {/* Tags (4ª coluna) */}
+                {allTags.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Tags {filterTags.length > 0 && <span className="text-purple-400">({filterTags.length})</span>}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowTagManager(true)}
+                        className="text-[10px] font-bold text-slate-500 hover:text-purple-300 underline"
+                      >
+                        ⚙️ Gerenciar
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto pr-1">
+                      {allTags.map(t => {
+                        const active = filterTags.some(f => f.toLowerCase() === t.toLowerCase());
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => toggleTagIn(setFilterTags, t)}
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                              active
+                                ? 'bg-purple-600 text-white border-purple-500'
+                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
+                            }`}
+                          >
+                            {active ? '✓ ' : '#'}{t}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-              {/* Filtro por Tags (interseção — mostra só o que tem todas as marcadas) */}
-              {allTags.length > 0 && (
-                <div className="pt-3 border-t border-slate-800/50">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Tags {filterTags.length > 0 && <span className="text-purple-400">({filterTags.length} ativas · precisa ter todas)</span>}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowTagManager(true)}
-                      className="text-[10px] font-bold text-slate-500 hover:text-purple-300 underline"
-                    >
-                      ⚙️ Gerir tags
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {allTags.map(t => {
-                      const active = filterTags.some(f => f.toLowerCase() === t.toLowerCase());
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => toggleTagIn(setFilterTags, t)}
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
-                            active
-                              ? 'bg-purple-600 text-white border-purple-500'
-                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
-                          }`}
-                        >
-                          {active ? '✓ ' : '#'}{t}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Cabeçalho de Resultados */}
             <div className="flex items-center justify-between px-2 text-xs">
               <span className="font-semibold text-slate-400">
-                A exibir <strong className="text-white">{processedItems.length}</strong> de {items.length} registados
+                Exibindo <strong className="text-white">{processedItems.length}</strong> de {items.length} registrados
               </span>
               {(searchQuery || filterType !== 'all' || filterStatus.length > 0 || filterTags.length > 0) && (
                 <button
@@ -1446,7 +1558,7 @@ export default function App() {
               disabled={isShuffling}
               className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 disabled:opacity-60 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
             >
-              {isShuffling ? "A escolher..." : (matchSmart ? "🧠 Recomendar" : "🎲 Sortear Sugestões")}
+              {isShuffling ? "Escolhendo..." : (matchSmart ? "🧠 Recomendar" : "🎲 Sortear Sugestões")}
             </button>
 
             {/* Exibição das Indicações Sorteadas */}
@@ -1454,7 +1566,7 @@ export default function App() {
               {isShuffling ? (
                 <div className="py-12 flex flex-col items-center justify-center space-y-2">
                   <div className="w-8 h-8 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
-                  <p className="text-xs text-slate-400">A processar...</p>
+                  <p className="text-xs text-slate-400">Processando...</p>
                 </div>
               ) : matchedItems.length > 0 ? (
                 <div className="space-y-5">
@@ -1508,7 +1620,7 @@ export default function App() {
       {isMobile && !isStandalone && (
         <button
           onClick={handleInstallClick}
-          aria-label="Instalar o CineFlow no telemóvel"
+          aria-label="Instalar o CineFlow no celular"
           className="fixed bottom-20 right-4 z-50 flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black uppercase tracking-wider rounded-full shadow-2xl shadow-purple-900/40 active:scale-95 transition-all"
         >
           <span className="text-sm">📲</span>
@@ -1632,7 +1744,7 @@ export default function App() {
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl text-center">
             <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-3"></div>
-            <h3 className="text-sm font-black text-white mb-1">A atualizar pelo TMDB…</h3>
+            <h3 className="text-sm font-black text-white mb-1">Atualizando pelo TMDB…</h3>
             <p className="text-xs text-slate-400 mb-3">{syncState.done} de {syncState.total} · {syncState.updated} enriquecidos</p>
             <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-850">
               <div
@@ -1690,7 +1802,7 @@ export default function App() {
         <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="text-center">
             <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-xs text-slate-400">A carregar a sua biblioteca…</p>
+            <p className="text-xs text-slate-400">Carregando a sua biblioteca…</p>
           </div>
         </div>
       )}
@@ -1705,11 +1817,27 @@ export default function App() {
         onConfirm={confirmMigrate}
         onClose={declineMigrate}
       >
-        Encontrámos <strong className="text-slate-200">{migratePrompt?.count ?? 0}</strong> título(s) guardado(s) neste dispositivo. Deseja importá-los para a sua conta e sincronizá-los em todos os aparelhos?
+        Encontrámos <strong className="text-slate-200">{migratePrompt?.count ?? 0}</strong> título(s) salvo(s) neste dispositivo. Deseja importá-los para a sua conta e sincronizá-los em todos os aparelhos?
       </ConfirmDialog>
 
       {/* ==================== TUTORIAL DE BOAS-VINDAS ==================== */}
       {showTutorial && <Tutorial onDone={finishTutorial} />}
+
+      {/* ==================== LISTAS COMPARTILHADAS ==================== */}
+      <CreateListModal
+        open={showCreateList}
+        onClose={() => setShowCreateList(false)}
+        onCreate={handleCreateList}
+      />
+      <ManageMembersModal
+        open={showMembers}
+        list={activeList}
+        currentEmail={user?.email || ''}
+        onClose={() => setShowMembers(false)}
+        onSaveMembers={handleSaveMembers}
+        onDeleteList={handleDeleteList}
+        onLeaveList={handleLeaveList}
+      />
 
       {/* ==================== TOAST DE NOTIFICAÇÃO ==================== */}
       <Toast toast={toast} />

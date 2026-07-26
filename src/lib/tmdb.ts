@@ -3,7 +3,7 @@
 //
 // A chave pode vir de duas fontes (nesta ordem de prioridade):
 //   1. Variável de ambiente VITE_TMDB_KEY (definida no build, ex.: arquivo .env)
-//   2. Chave digitada pela pessoa na interface (guardada no localStorage)
+//   2. Chave digitada pela pessoa na interface (salva no localStorage)
 //
 // Crie uma chave gratuita em: https://www.themoviedb.org/settings/api  (API Key v3)
 import type { Tipo, TmdbSearchResult, TmdbDetails, WatchProviders, Provider, CastMember } from '../types';
