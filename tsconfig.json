@@ -39,6 +39,7 @@
     "src/lib/firebase.ts",
     "src/lib/lists.ts",
     "src/components/CreateListModal.tsx",
-    "src/components/ManageMembersModal.tsx"
+    "src/components/ManageMembersModal.tsx",
+    "src/components/AddToListModal.tsx"
   ]
 }

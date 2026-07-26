@@ -22,6 +22,7 @@ import type { SharedList } from './types';
 import { fetchSharedLists, createSharedList, loadListItems, saveListItems, setListMembers, deleteSharedList } from './lib/lists';
 import CreateListModal from './components/CreateListModal';
 import ManageMembersModal from './components/ManageMembersModal';
+import AddToListModal from './components/AddToListModal';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -48,6 +49,7 @@ export default function App() {
   // --- Estado da Aplicação (biblioteca sincronizada com o Firestore) ---
   const [items, setItems] = useState<Item[]>([]);
   const [libLoaded, setLibLoaded] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const [showTutorial, setShowTutorial] = useState(false);
   const [migratePrompt, setMigratePrompt] = useState<{ count: number } | null>(null);
   const skipSave = useRef(false);   // pula a gravação logo após aplicar dados remotos
@@ -112,7 +114,7 @@ export default function App() {
       }
     })();
     return () => { active = false; };
-  }, [user, activeSource]);
+  }, [user, activeSource, reloadTick]);
 
   // Grava a biblioteca no Firestore quando muda (com debounce)
   useEffect(() => {
@@ -202,6 +204,31 @@ export default function App() {
     }
   };
 
+  // Adiciona um título a uma ou mais listas (copia para a lista)
+  const handleAddToLists = async (item: Item, listIds: string[]) => {
+    let added = 0;
+    for (const id of listIds) {
+      try {
+        const current = await loadListItems(id);
+        const exists = current.some((x) =>
+          (item.tmdb_id && x.tmdb_id === item.tmdb_id) ||
+          (x.titulo.trim().toLowerCase() === item.titulo.trim().toLowerCase() && Number(x.ano) === Number(item.ano))
+        );
+        if (!exists) {
+          const copy: Item = { ...normalizeItem(item), id: genId('custom'), data_adicao: new Date().toISOString() };
+          await saveListItems(id, [copy, ...current]);
+          added++;
+        }
+      } catch (e) {
+        console.error('Falha ao adicionar à lista.', e);
+      }
+    }
+    setAddToListItem(null);
+    if (listIds.includes(activeSource)) setReloadTick((t) => t + 1);
+    if (added > 0) showToast(`Adicionado a ${added} lista${added > 1 ? 's' : ''}!`);
+    else showToast('O título já estava na(s) lista(s) escolhida(s).', 'info');
+  };
+
   const [activeTab, setActiveTab] = useState('lista');
 
   // Filtros da Lista
@@ -250,6 +277,22 @@ export default function App() {
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [syncState, setSyncState] = useState({ running: false, done: 0, total: 0, updated: 0 });
   const [showLibMenu, setShowLibMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const libMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [addToListItem, setAddToListItem] = useState<Item | null>(null);
+
+  // Fecha os menus do cabeçalho ao clicar fora
+  useEffect(() => {
+    if (!showLibMenu && !showUserMenu) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (showLibMenu && libMenuRef.current && !libMenuRef.current.contains(t)) setShowLibMenu(false);
+      if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(t)) setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showLibMenu, showUserMenu]);
   const [showTagManager, setShowTagManager] = useState(false);
 
   // Busca web (TMDB) a partir da barra de pesquisa da página inicial
@@ -1059,7 +1102,7 @@ export default function App() {
               </button>
             )}
             {/* Menu consolidado: Biblioteca */}
-            <div className="relative">
+            <div className="relative" ref={libMenuRef}>
               <button
                 onClick={() => setShowLibMenu((v) => !v)}
                 aria-haspopup="menu"
@@ -1075,8 +1118,6 @@ export default function App() {
 
               {showLibMenu && (
                 <>
-                  {/* click-away */}
-                  <div className="fixed inset-0 z-40" onClick={() => setShowLibMenu(false)}></div>
                   <div
                     role="menu"
                     className="absolute right-0 mt-2 w-60 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-1.5 text-left"
@@ -1103,22 +1144,38 @@ export default function App() {
             </div>
 
             {user && (
-              <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-800">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-7 h-7 rounded-full border border-slate-700" title={user.displayName || user.email || ''} referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-[11px] font-black text-white" title={user.displayName || user.email || ''}>
-                    {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
+              <div className="relative ml-1 pl-2 border-l border-slate-800" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={showUserMenu}
+                  title={user.displayName || user.email || 'Conta'}
+                  className="block rounded-full ring-2 ring-transparent hover:ring-purple-500/40 active:scale-95 transition-all"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-8 h-8 rounded-full border border-slate-700" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-black text-white">
+                      {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </button>
+
+                {showUserMenu && (
+                  <div role="menu" className="absolute right-0 mt-2 w-56 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-1.5">
+                    <div className="px-3 py-2 border-b border-slate-800 mb-1">
+                      <p className="text-xs font-bold text-white truncate">{user.displayName || 'Conta'}</p>
+                      {user.email && <p className="text-[10px] text-slate-500 truncate">{user.email}</p>}
+                    </div>
+                    <button
+                      role="menuitem"
+                      onClick={() => { setShowUserMenu(false); logout(); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-300 hover:bg-red-950/40 transition-colors"
+                    >
+                      <span>⏻</span> Terminar sessão
+                    </button>
                   </div>
                 )}
-                <button
-                  onClick={() => logout()}
-                  title="Sair"
-                  aria-label="Sair"
-                  className="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-sm rounded-xl border border-slate-700 transition-all"
-                >
-                  ⏻
-                </button>
               </div>
             )}
           </div>
@@ -1184,8 +1241,10 @@ export default function App() {
                   👥 Membros ({activeList.memberEmails.length})
                 </button>
               )}
-              {activeSource !== 'personal' && (
-                <span className="text-[10px] text-purple-400 font-semibold">lista compartilhada</span>
+              {activeList && (
+                <span className="text-[10px] text-purple-400 font-semibold">
+                  {activeList.memberEmails.length > 1 ? 'lista compartilhada' : 'lista pessoal'}
+                </span>
               )}
             </div>
 
@@ -1354,6 +1413,7 @@ export default function App() {
                     onEdit={handleOpenEditModal}
                     onDelete={handleDeleteItem}
                     onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
+                    onAddToList={(it) => setAddToListItem(it)}
                   />
                 ))}
               </div>
@@ -1837,6 +1897,14 @@ export default function App() {
         onSaveMembers={handleSaveMembers}
         onDeleteList={handleDeleteList}
         onLeaveList={handleLeaveList}
+      />
+      <AddToListModal
+        open={!!addToListItem}
+        itemTitulo={addToListItem?.titulo || ''}
+        lists={sharedLists}
+        onClose={() => setAddToListItem(null)}
+        onConfirm={(ids) => { if (addToListItem) handleAddToLists(addToListItem, ids); }}
+        onCreateNew={() => { setAddToListItem(null); setShowCreateList(true); }}
       />
 
       {/* ==================== TOAST DE NOTIFICAÇÃO ==================== */}

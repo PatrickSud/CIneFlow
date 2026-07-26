@@ -11,6 +11,7 @@ interface ItemCardProps {
   onEdit: (item: Item) => void;
   onDelete: (id: string, titulo: string) => void;
   onTagClick: (tag: string) => void;
+  onAddToList: (item: Item) => void;
 }
 
 export default function ItemCard({
@@ -21,6 +22,7 @@ export default function ItemCard({
   onEdit,
   onDelete,
   onTagClick,
+  onAddToList,
 }: ItemCardProps) {
   return (
     <div className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group">
@@ -162,6 +164,14 @@ export default function ItemCard({
             aria-label="Alternar estado assistido"
           >
             ✓
+          </button>
+          <button
+            onClick={() => onAddToList(item)}
+            className="p-1 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-purple-400 border border-slate-800 rounded-lg text-xs"
+            title="Adicionar a uma lista"
+            aria-label="Adicionar a uma lista"
+          >
+            ➕
           </button>
           <button
             onClick={() => onEdit(item)}
