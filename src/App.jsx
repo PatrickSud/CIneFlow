@@ -59,6 +59,8 @@ export default function App() {
   const [formStatusAssistido, setFormStatusAssistido] = useState('nao_assistido');
   const [formProgresso, setFormProgresso] = useState(0);
   const [formTemporadas, setFormTemporadas] = useState(0);
+  const [formTemporadaAtual, setFormTemporadaAtual] = useState(1);
+  const [formEpisodioAtual, setFormEpisodioAtual] = useState(1);
   const [formNota, setFormNota] = useState(0);
   const [formNotasPessoais, setFormNotasPessoais] = useState('');
 
@@ -98,6 +100,8 @@ export default function App() {
     setFormStatusAssistido('nao_assistido');
     setFormProgresso(0);
     setFormTemporadas(0);
+    setFormTemporadaAtual(1);
+    setFormEpisodioAtual(1);
     setFormNota(0);
     setFormNotasPessoais('');
     setTmdbQuery('');
@@ -118,6 +122,8 @@ export default function App() {
     setFormStatusAssistido(item.status_assistido || 'nao_assistido');
     setFormProgresso(item.progresso_porcentagem || 0);
     setFormTemporadas(item.temporadas_assistidas_max || 0);
+    setFormTemporadaAtual(item.temporada_atual || 1);
+    setFormEpisodioAtual(item.episodio_atual || 1);
     setFormNota(item.nota || 0);
     setFormNotasPessoais(item.notas_pessoais || '');
     setModalMode('manual');
@@ -148,6 +154,8 @@ export default function App() {
       status_assistido: formStatusAssistido,
       progresso_porcentagem: Number(finalProgresso),
       temporadas_assistidas_max: formTipo === 'series' ? Number(formTemporadas) : 0,
+      temporada_atual: formTipo === 'series' && formStatusAssistido === 'em_andamento' ? Number(formTemporadaAtual) : 0,
+      episodio_atual: formTipo === 'series' && formStatusAssistido === 'em_andamento' ? Number(formEpisodioAtual) : 0,
       nota: Number(formNota),
       notas_pessoais: formNotasPessoais.trim()
     };
@@ -287,6 +295,8 @@ export default function App() {
     setFormStatusAssistido('nao_assistido');
     setFormProgresso(0);
     setFormTemporadas(0);
+    setFormTemporadaAtual(1);
+    setFormEpisodioAtual(1);
     setFormNota(0);
     setFormNotasPessoais('');
     setModalMode('manual');
@@ -376,7 +386,35 @@ export default function App() {
       ? (ratedItems.reduce((acc, i) => acc + i.nota, 0) / ratedItems.length).toFixed(1)
       : '0.0';
 
-    return { total, movies, shows, watched, inProgress, unwatched, watchedPercent, avgRating };
+    // Distribuição por gênero (top 8)
+    const genreCount = {};
+    items.forEach(i => {
+      if (Array.isArray(i.generos)) {
+        i.generos.forEach(g => {
+          const name = (g || '').trim();
+          if (name) genreCount[name] = (genreCount[name] || 0) + 1;
+        });
+      }
+    });
+    const topGenres = Object.entries(genreCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([nome, qtd]) => ({ nome, qtd }));
+
+    // Distribuição por década
+    const decadeCount = {};
+    items.forEach(i => {
+      const ano = Number(i.ano);
+      if (ano && !Number.isNaN(ano)) {
+        const dec = Math.floor(ano / 10) * 10;
+        decadeCount[dec] = (decadeCount[dec] || 0) + 1;
+      }
+    });
+    const decades = Object.entries(decadeCount)
+      .map(([dec, qtd]) => ({ dec: Number(dec), qtd }))
+      .sort((a, b) => a.dec - b.dec);
+
+    return { total, movies, shows, watched, inProgress, unwatched, watchedPercent, avgRating, topGenres, decades };
   }, [items]);
 
   // --- CineMatch ---
@@ -679,7 +717,15 @@ export default function App() {
                           </div>
                         )}
 
-                        {item.tipo === 'series' && item.temporadas_assistidas_max > 0 && (
+                        {item.tipo === 'series' && item.status_assistido === 'em_andamento' && (item.temporada_atual > 0 || item.episodio_atual > 0) && (
+                          <div className="pt-1.5 flex items-center space-x-1">
+                            <span className="text-[10px] bg-blue-950/60 text-blue-300 px-1.5 py-0.5 rounded font-bold border border-blue-900/40">
+                              📺 T{item.temporada_atual || 1} · E{item.episodio_atual || 1}
+                            </span>
+                          </div>
+                        )}
+
+                        {item.tipo === 'series' && item.status_assistido !== 'em_andamento' && item.temporadas_assistidas_max > 0 && (
                           <div className="pt-1.5 flex items-center space-x-1">
                             <span className="text-[10px] bg-indigo-950/60 text-indigo-300 px-1.5 py-0.5 rounded font-bold border border-indigo-900/30">
                               📺 {item.temporadas_assistidas_max} {item.temporadas_assistidas_max === 1 ? 'Temp.' : 'Temps.'}
@@ -945,6 +991,66 @@ export default function App() {
               <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-850 p-0.5">
                 <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700" style={{ width: `${stats.watchedPercent}%` }}></div>
               </div>
+            </div>
+
+            {/* Nota média + Distribuições */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+              {/* Distribuição por Gênero */}
+              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">🎭 Principais Géneros</h4>
+                  <span className="text-[10px] bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 font-black">
+                    Nota média ★ {stats.avgRating}
+                  </span>
+                </div>
+                {stats.topGenres.length > 0 ? (
+                  <div className="space-y-2 pt-1">
+                    {stats.topGenres.map(g => (
+                      <div key={g.nome} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold">
+                          <span className="text-slate-300">{g.nome}</span>
+                          <span className="text-slate-500">{g.qtd}</span>
+                        </div>
+                        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-850">
+                          <div
+                            className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700"
+                            style={{ width: `${(g.qtd / stats.topGenres[0].qtd) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">Sem géneros registados ainda.</p>
+                )}
+              </div>
+
+              {/* Distribuição por Década */}
+              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">📅 Por Década de Lançamento</h4>
+                {stats.decades.length > 0 ? (
+                  <div className="flex items-end justify-between gap-1.5 pt-3 h-40">
+                    {stats.decades.map(d => {
+                      const maxDec = Math.max(...stats.decades.map(x => x.qtd));
+                      const h = Math.max(6, Math.round((d.qtd / maxDec) * 100));
+                      return (
+                        <div key={d.dec} className="flex-1 flex flex-col items-center justify-end h-full gap-1" title={`${d.qtd} título(s)`}>
+                          <span className="text-[9px] font-bold text-slate-400">{d.qtd}</span>
+                          <div
+                            className="w-full bg-gradient-to-t from-purple-600 to-indigo-400 rounded-t-md transition-all duration-700"
+                            style={{ height: `${h}%` }}
+                          ></div>
+                          <span className="text-[8px] font-bold text-slate-500">{`${String(d.dec).slice(2)}s`}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">Sem anos registados ainda.</p>
+                )}
+              </div>
+
             </div>
 
             {/* Obras com Classificação de 5 Estrelas */}
@@ -1292,6 +1398,32 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* Episódio atual — apenas para séries em curso */}
+                {formTipo === 'series' && formStatusAssistido === 'em_andamento' && (
+                  <div className="grid grid-cols-2 gap-3 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Temporada atual</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formTemporadaAtual}
+                        onChange={(e) => setFormTemporadaAtual(e.target.value)}
+                        className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Episódio atual</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formEpisodioAtual}
+                        onChange={(e) => setFormEpisodioAtual(e.target.value)}
+                        className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block text-center">Classificação ({formNota} estrelas)</label>
