@@ -967,25 +967,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
-            {user && (
-              <div className="flex items-center gap-1.5 mr-1">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName || 'Utilizador'} className="w-7 h-7 rounded-full border border-slate-700" title={user.displayName || user.email || ''} referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-[11px] font-black text-white" title={user.displayName || user.email || ''}>
-                    {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <button
-                  onClick={() => logout()}
-                  title="Terminar sessão"
-                  aria-label="Terminar sessão"
-                  className="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-sm rounded-xl border border-slate-700 transition-all"
-                >
-                  ⏻
-                </button>
-              </div>
-            )}
             {hasTmdbKey && (
               <button
                 onClick={() => setShowSyncConfirm(true)}
@@ -1040,6 +1021,26 @@ export default function App() {
                 </>
               )}
             </div>
+
+            {user && (
+              <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-800">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || 'Utilizador'} className="w-7 h-7 rounded-full border border-slate-700" title={user.displayName || user.email || ''} referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-[11px] font-black text-white" title={user.displayName || user.email || ''}>
+                    {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <button
+                  onClick={() => logout()}
+                  title="Terminar sessão"
+                  aria-label="Terminar sessão"
+                  className="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-sm rounded-xl border border-slate-700 transition-all"
+                >
+                  ⏻
+                </button>
+              </div>
+            )}
           </div>
 
         </div>
