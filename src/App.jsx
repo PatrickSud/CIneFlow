@@ -8,6 +8,10 @@ import Toast from './components/Toast';
 import ItemCard from './components/ItemCard';
 import Dashboard from './components/Dashboard';
 import DetailModal from './components/DetailModal';
+import ConfirmDialog from './components/ConfirmDialog';
+import TagManagerModal from './components/TagManagerModal';
+import TmdbHelpModal from './components/TmdbHelpModal';
+import IosInstallHelp from './components/IosInstallHelp';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -43,17 +47,6 @@ export default function App() {
   }, [items]);
 
   const [activeTab, setActiveTab] = useState('lista');
-
-  // Tema claro/escuro
-  const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('cineflow_theme') || 'dark'; } catch { return 'dark'; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('cineflow_theme', theme); } catch {}
-    const bg = theme === 'light' ? '#eef2f6' : '#020617';
-    document.documentElement.style.backgroundColor = bg;
-    document.body.style.backgroundColor = bg;
-  }, [theme]);
 
   // Filtros da Lista
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,7 +95,6 @@ export default function App() {
   const [syncState, setSyncState] = useState({ running: false, done: 0, total: 0, updated: 0 });
   const [showLibMenu, setShowLibMenu] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
-  const [tagEdits, setTagEdits] = useState({});
 
   // Busca web (TMDB) a partir da barra de pesquisa da página inicial
   const [webResults, setWebResults] = useState([]);
@@ -881,7 +873,7 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-purple-600 pb-24 ${theme === 'light' ? 'theme-light' : ''}`}>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-purple-600 pb-24">
       
       {/* Header Estável */}
       <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/85">
@@ -902,14 +894,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}
-              aria-label="Alternar tema claro/escuro"
-              title="Alternar tema claro/escuro"
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-sm rounded-xl border border-slate-700 transition-all"
-            >
-              {theme === 'light' ? '🌙' : '☀️'}
-            </button>
             {hasTmdbKey && (
               <button
                 onClick={() => setShowSyncConfirm(true)}
@@ -1894,34 +1878,22 @@ export default function App() {
       )}
 
       {/* ==================== CONFIRMAÇÃO: ATUALIZAR TMDB ==================== */}
-      {showSyncConfirm && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSyncConfirm(false)}>
-          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="w-12 h-12 bg-purple-950/60 border border-purple-500/30 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🔄</div>
-            <h3 className="text-sm font-black text-white text-center mb-1">Atualizar biblioteca pelo TMDB?</h3>
-            <p className="text-xs text-slate-400 text-center mb-2">
-              Vou reler os <strong className="text-slate-200">{items.length}</strong> títulos e atualizar sinopse, duração, temporadas/episódios, elenco e pôster com os dados atuais do TMDB. Itens adicionados manualmente serão associados pelo nome.
-            </p>
-            <p className="text-[11px] text-slate-500 text-center mb-5">
-              As suas informações pessoais (nota, estado, tags, anotações e progresso) são preservadas. Pode levar um tempo.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowSyncConfirm(false)}
-                className="flex-1 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleRefreshTmdb}
-                className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
-              >
-                Atualizar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showSyncConfirm}
+        icon="🔄"
+        title="Atualizar biblioteca pelo TMDB?"
+        confirmLabel="Atualizar"
+        tone="primary"
+        onConfirm={handleRefreshTmdb}
+        onClose={() => setShowSyncConfirm(false)}
+      >
+        <span className="block mb-2">
+          Vou reler os <strong className="text-slate-200">{items.length}</strong> títulos e atualizar sinopse, duração, temporadas/episódios, elenco e pôster com os dados atuais do TMDB. Itens adicionados manualmente serão associados pelo nome.
+        </span>
+        <span className="block text-[11px] text-slate-500">
+          As suas informações pessoais (nota, estado, tags, anotações e progresso) são preservadas. Pode levar um tempo.
+        </span>
+      </ConfirmDialog>
 
       {/* ==================== PROGRESSO: ATUALIZAR TMDB ==================== */}
       {syncState.running && (
@@ -1941,84 +1913,28 @@ export default function App() {
       )}
 
       {/* ==================== CONFIRMAÇÃO DE EXCLUSÃO ==================== */}
-      {confirmState.open && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setConfirmState({ open: false, id: null, titulo: '' })}>
-          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="w-12 h-12 bg-red-950/60 border border-red-500/30 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🗑️</div>
-            <h3 className="text-sm font-black text-white text-center mb-1">Remover da biblioteca?</h3>
-            <p className="text-xs text-slate-400 text-center mb-5">
-              "<strong className="text-slate-200">{confirmState.titulo}</strong>" será apagado. Esta ação não pode ser desfeita.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmState({ open: false, id: null, titulo: '' })}
-                className="flex-1 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
-              >
-                Remover
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmState.open}
+        icon="🗑️"
+        title="Remover da biblioteca?"
+        confirmLabel="Remover"
+        tone="danger"
+        onConfirm={confirmDelete}
+        onClose={() => setConfirmState({ open: false, id: null, titulo: '' })}
+      >
+        "<strong className="text-slate-200">{confirmState.titulo}</strong>" será apagado. Esta ação não pode ser desfeita.
+      </ConfirmDialog>
 
       {/* ==================== GERENCIADOR DE TAGS ==================== */}
-      {showTagManager && (
-        <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setShowTagManager(false)}>
-          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-md w-full p-6 shadow-2xl my-8" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setShowTagManager(false)}
-              aria-label="Fechar"
-              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800"
-            >
-              ✕
-            </button>
-            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">⚙️ Gerir Tags</h3>
-            <p className="text-xs text-slate-400 mb-4">Renomear ou apagar afeta todos os títulos que usam a tag.</p>
-            {allTags.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">Ainda não há tags. Crie-as ao adicionar ou editar um título.</p>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                {allTags.map(t => {
-                  const key = t.toLowerCase();
-                  const count = items.filter(i => Array.isArray(i.tags) && i.tags.some(x => x.toLowerCase() === key)).length;
-                  const draft = tagEdits[key] ?? t;
-                  return (
-                    <div key={t} className="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl p-2">
-                      <input
-                        type="text"
-                        value={draft}
-                        onChange={(e) => setTagEdits(prev => ({ ...prev, [key]: e.target.value }))}
-                        className="flex-1 min-w-0 py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      />
-                      <span className="text-[9px] text-slate-500 font-bold flex-shrink-0">{count}×</span>
-                      <button
-                        onClick={() => { renameTagGlobally(t, draft); setTagEdits(prev => { const n = { ...prev }; delete n[key]; return n; }); }}
-                        disabled={draft.trim() === '' || draft.trim().toLowerCase() === t.toLowerCase()}
-                        className="text-[10px] font-bold text-purple-300 disabled:text-slate-700 disabled:cursor-default bg-slate-950 border border-slate-800 px-2 py-1 rounded-lg hover:border-purple-500/40"
-                      >
-                        Renomear
-                      </button>
-                      <button
-                        onClick={() => deleteTagGlobally(t)}
-                        aria-label={`Apagar tag ${t}`}
-                        className="text-[10px] font-bold text-red-400 bg-slate-950 border border-slate-800 px-2 py-1 rounded-lg hover:border-red-500/40"
-                      >
-                        Apagar
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <TagManagerModal
+        open={showTagManager}
+        allTags={allTags}
+        items={items}
+        onRename={renameTagGlobally}
+        onDelete={deleteTagGlobally}
+        onClose={() => setShowTagManager(false)}
+      />
+
       {/* ==================== DETALHES DO TÍTULO ==================== */}
       {detailItem && (
         <DetailModal
@@ -2032,93 +1948,10 @@ export default function App() {
       )}
 
       {/* ==================== AJUDA: OBTER CHAVE DE API (TMDB) ==================== */}
-      {showTmdbHelp && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setShowTmdbHelp(false)}>
-          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-md w-full p-6 shadow-2xl my-8" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setShowTmdbHelp(false)}
-              aria-label="Fechar"
-              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800"
-            >
-              ✕
-            </button>
-            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">🔑 Obter a chave de API (grátis)</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              A chave serve para o app buscar filmes e séries automaticamente. É gratuita e leva uns 3 minutos. Siga os passos:
-            </p>
-            <ol className="space-y-3 text-xs text-slate-300">
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">1</span>
-                <span>Abra <a href="https://www.themoviedb.org/signup" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/signup</a> e crie uma conta gratuita (nome de utilizador, email e senha).</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">2</span>
-                <span>Confirme a conta pelo email que o site enviar (verifique também o spam).</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">3</span>
-                <span>Já com sessão iniciada, abra <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/settings/api</a>.</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">4</span>
-                <span>Clique em <strong>“Criar”</strong> e escolha a opção <strong>“Developer”</strong> (uso pessoal).</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">5</span>
-                <span>Aceite os termos e preencha o formulário. Pode usar dados simples: tipo <em>Website</em>, nome “CineFlow”, URL <em>http://localhost</em> e uma descrição como “uso pessoal”.</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">6</span>
-                <span>Na página que aparece, copie o valor <strong>“Chave da API (v3 auth)”</strong> — uma sequência de letras e números.</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">7</span>
-                <span>Volte aqui, cole a chave no campo e toque em <strong>Guardar</strong>. Pronto! 🎉</span>
-              </li>
-            </ol>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-500">
-              Dica: use a <strong>“Chave da API”</strong>, e não o “Token de Leitura” (aquele texto bem longo).
-            </div>
-            <button
-              onClick={() => setShowTmdbHelp(false)}
-              className="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
-            >
-              Entendi
-            </button>
-          </div>
-        </div>
-      )}
+      <TmdbHelpModal open={showTmdbHelp} onClose={() => setShowTmdbHelp(false)} />
 
       {/* ==================== INSTRUÇÕES DE INSTALAÇÃO (iOS) ==================== */}
-      {showIosHelp && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowIosHelp(false)}>
-          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setShowIosHelp(false)}
-              aria-label="Fechar"
-              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800"
-            >
-              ✕
-            </button>
-            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-3">📲 Instalar no iPhone / iPad</h3>
-            <p className="text-xs text-slate-400 mb-4">No Safari, siga estes passos:</p>
-            <ol className="space-y-3 text-xs text-slate-300">
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">1</span>
-                <span>Toque no botão <strong>Partilhar</strong> (o quadrado com a seta para cima), na barra do Safari.</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">2</span>
-                <span>Deslize e toque em <strong>“Adicionar à Tela de Início”</strong>.</span>
-              </li>
-              <li className="flex gap-2.5">
-                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">3</span>
-                <span>Confirme em <strong>“Adicionar”</strong>. O CineFlow aparece como um app na sua tela.</span>
-              </li>
-            </ol>
-          </div>
-        </div>
-      )}
+      <IosInstallHelp open={showIosHelp} onClose={() => setShowIosHelp(false)} />
 
       {/* ==================== TOAST DE NOTIFICAÇÃO ==================== */}
       <Toast toast={toast} />

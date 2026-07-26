@@ -26,6 +26,10 @@
     "src/components/Toast.tsx",
     "src/components/ItemCard.tsx",
     "src/components/Dashboard.tsx",
-    "src/components/DetailModal.tsx"
+    "src/components/DetailModal.tsx",
+    "src/components/ConfirmDialog.tsx",
+    "src/components/TagManagerModal.tsx",
+    "src/components/TmdbHelpModal.tsx",
+    "src/components/IosInstallHelp.tsx"
   ]
 }
