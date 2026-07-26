@@ -6,6 +6,21 @@ const POSTER_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
+// Tipos de conteúdo suportados. `serial: true` = tem temporadas/episódios.
+const TYPES = [
+  { id: 'movie',       label: 'Filme',              emoji: '🎬', serial: false },
+  { id: 'series',      label: 'Série',              emoji: '📺', serial: true  },
+  { id: 'anime',       label: 'Anime',              emoji: '🍥', serial: true  },
+  { id: 'documentary', label: 'Documentário',       emoji: '🎥', serial: false },
+  { id: 'miniseries',  label: 'Minissérie',         emoji: '📼', serial: true  },
+  { id: 'tvshow',      label: 'Programa de TV',     emoji: '🎙️', serial: true  },
+  { id: 'standup',     label: 'Stand-up / Especial', emoji: '🎤', serial: false },
+];
+const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.id, t]));
+const typeLabel = (id) => (TYPE_MAP[id]?.label) || 'Filme';
+const typeEmoji = (id) => (TYPE_MAP[id]?.emoji) || '🎬';
+const isSerial  = (id) => Boolean(TYPE_MAP[id]?.serial);
+
 // Gera IDs únicos e robustos (evita colisões de Date.now() em criações rápidas)
 const genId = (prefix = 'custom') =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -275,9 +290,9 @@ export default function App() {
       poster_url: formPosterUrl.trim(),
       status_assistido: formStatusAssistido,
       progresso_porcentagem: Number(finalProgresso),
-      temporadas_assistidas_max: formTipo === 'series' ? Number(formTemporadas) : 0,
-      temporada_atual: formTipo === 'series' && formStatusAssistido === 'em_andamento' ? Number(formTemporadaAtual) : 0,
-      episodio_atual: formTipo === 'series' && formStatusAssistido === 'em_andamento' ? Number(formEpisodioAtual) : 0,
+      temporadas_assistidas_max: isSerial(formTipo) ? Number(formTemporadas) : 0,
+      temporada_atual: isSerial(formTipo) && formStatusAssistido === 'em_andamento' ? Number(formTemporadaAtual) : 0,
+      episodio_atual: isSerial(formTipo) && formStatusAssistido === 'em_andamento' ? Number(formEpisodioAtual) : 0,
       nota: Number(formNota),
       notas_pessoais: formNotasPessoais.trim(),
       tags: formTags.map(t => t.trim()).filter(Boolean)
@@ -506,8 +521,8 @@ export default function App() {
   // --- Estatísticas ---
   const stats = useMemo(() => {
     const total = items.length;
-    const movies = items.filter(i => i.tipo === 'movie').length;
-    const shows = items.filter(i => i.tipo === 'series').length;
+    const movies = items.filter(i => !isSerial(i.tipo)).length;
+    const shows = items.filter(i => isSerial(i.tipo)).length;
     const watched = items.filter(i => i.status_assistido === 'assistido').length;
     const inProgress = items.filter(i => i.status_assistido === 'em_andamento').length;
     const unwatched = items.filter(i => i.status_assistido === 'nao_assistido').length;
@@ -546,7 +561,13 @@ export default function App() {
       .map(([dec, qtd]) => ({ dec: Number(dec), qtd }))
       .sort((a, b) => a.dec - b.dec);
 
-    return { total, movies, shows, watched, inProgress, unwatched, watchedPercent, avgRating, topGenres, decades };
+    // Distribuição por tipo (apenas os que têm ao menos 1 título)
+    const byType = TYPES
+      .map(t => ({ ...t, qtd: items.filter(i => i.tipo === t.id).length }))
+      .filter(t => t.qtd > 0)
+      .sort((a, b) => b.qtd - a.qtd);
+
+    return { total, movies, shows, watched, inProgress, unwatched, watchedPercent, avgRating, topGenres, decades, byType };
   }, [items]);
 
   // --- CineMatch ---
@@ -687,35 +708,16 @@ export default function App() {
                 {/* Categoria */}
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Categoria</label>
-                  <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setFilterType('all')}
-                      className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
-                        filterType === 'all' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      Tudo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilterType('movie')}
-                      className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
-                        filterType === 'movie' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      Filmes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilterType('series')}
-                      className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
-                        filterType === 'series' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      Séries/Animes
-                    </button>
-                  </div>
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="block w-full py-1.5 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="all">✨ Tudo</option>
+                    {TYPES.map(t => (
+                      <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Status Assistido */}
@@ -851,8 +853,8 @@ export default function App() {
                           }}
                         />
                         {/* Selo Tipo */}
-                        <div className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[8px] font-bold tracking-wider uppercase text-slate-300">
-                          {item.tipo === 'movie' ? 'Filme' : 'Série'}
+                        <div className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-200" title={typeLabel(item.tipo)}>
+                          {typeEmoji(item.tipo)}
                         </div>
                       </div>
 
@@ -920,7 +922,7 @@ export default function App() {
                           </div>
                         )}
 
-                        {item.tipo === 'series' && item.status_assistido === 'em_andamento' && (item.temporada_atual > 0 || item.episodio_atual > 0) && (
+                        {isSerial(item.tipo) && item.status_assistido === 'em_andamento' && (item.temporada_atual > 0 || item.episodio_atual > 0) && (
                           <div className="pt-1.5 flex items-center space-x-1">
                             <span className="text-[10px] bg-blue-950/60 text-blue-300 px-1.5 py-0.5 rounded font-bold border border-blue-900/40">
                               📺 T{item.temporada_atual || 1} · E{item.episodio_atual || 1}
@@ -928,7 +930,7 @@ export default function App() {
                           </div>
                         )}
 
-                        {item.tipo === 'series' && item.status_assistido !== 'em_andamento' && item.temporadas_assistidas_max > 0 && (
+                        {isSerial(item.tipo) && item.status_assistido !== 'em_andamento' && item.temporadas_assistidas_max > 0 && (
                           <div className="pt-1.5 flex items-center space-x-1">
                             <span className="text-[10px] bg-indigo-950/60 text-indigo-300 px-1.5 py-0.5 rounded font-bold border border-indigo-900/30">
                               📺 {item.temporadas_assistidas_max} {item.temporadas_assistidas_max === 1 ? 'Temp.' : 'Temps.'}
@@ -1041,8 +1043,9 @@ export default function App() {
                   className="w-full py-1.5 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold focus:outline-none"
                 >
                   <option value="all">🍿 Qualquer Tipo</option>
-                  <option value="movie">🎬 Filmes</option>
-                  <option value="series">📺 Séries/Animes</option>
+                  {TYPES.map(t => (
+                    <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1147,7 +1150,7 @@ export default function App() {
                         />
                         <div className="flex-1 space-y-1">
                           <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded uppercase font-bold">
-                            {item.tipo === 'movie' ? '🎬 Filme' : '📺 Série'}
+                            {typeEmoji(item.tipo)} {typeLabel(item.tipo)}
                           </span>
                           <h4 className="font-bold text-sm text-white leading-tight mt-1">{item.titulo}</h4>
                           <p className="text-[10px] text-slate-400">{item.ano}</p>
@@ -1223,6 +1226,22 @@ export default function App() {
                 <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700" style={{ width: `${stats.watchedPercent}%` }}></div>
               </div>
             </div>
+
+            {/* Distribuição por Tipo */}
+            {stats.byType.length > 0 && (
+              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">🗂️ Por Tipo de Conteúdo</h4>
+                <div className="flex flex-wrap gap-2">
+                  {stats.byType.map(t => (
+                    <div key={t.id} className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
+                      <span>{t.emoji}</span>
+                      <span className="text-xs font-semibold text-slate-300">{t.label}</span>
+                      <span className="text-xs font-black text-purple-400">{t.qtd}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Nota média + Distribuições */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1487,7 +1506,7 @@ export default function App() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className="text-[8px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded uppercase font-bold">
-                                {r.tipo === 'movie' ? '🎬 Filme' : '📺 Série'}
+                                {typeEmoji(r.tipo)} {typeLabel(r.tipo)}
                               </span>
                               <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
                             </div>
@@ -1563,8 +1582,9 @@ export default function App() {
                       onChange={(e) => setFormTipo(e.target.value)}
                       className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none"
                     >
-                      <option value="movie">🎬 Filme</option>
-                      <option value="series">📺 Série/Anime</option>
+                      {TYPES.map(t => (
+                        <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -1615,7 +1635,7 @@ export default function App() {
                     </select>
                   </div>
 
-                  {formTipo === 'movie' ? (
+                  {!isSerial(formTipo) ? (
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Progresso (%)</label>
                       <input
@@ -1642,8 +1662,8 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Episódio atual — apenas para séries em curso */}
-                {formTipo === 'series' && formStatusAssistido === 'em_andamento' && (
+                {/* Episódio atual — apenas para conteúdos seriados em curso */}
+                {isSerial(formTipo) && formStatusAssistido === 'em_andamento' && (
                   <div className="grid grid-cols-2 gap-3 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Temporada atual</label>

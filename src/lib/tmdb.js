@@ -110,12 +110,21 @@ export async function searchTmdb(query) {
       const date = isMovie ? r.release_date : r.first_air_date;
       const ano = date ? Number(String(date).slice(0, 4)) : null;
       const gMap = isMovie ? genres.movie : genres.tv;
-      const generos = (r.genre_ids || [])
-        .map((id) => gMap[id])
-        .filter(Boolean);
+      const genreIds = r.genre_ids || [];
+      const generos = genreIds.map((id) => gMap[id]).filter(Boolean);
+
+      // Detecção fina de tipo: documentário (gênero 99) e anime (animação + japonês).
+      // 16 = Animação, 99 = Documentário (ids padrão do TMDB, iguais em filme e TV).
+      let tipo = isMovie ? 'movie' : 'series';
+      if (genreIds.includes(99)) {
+        tipo = 'documentary';
+      } else if (genreIds.includes(16) && r.original_language === 'ja') {
+        tipo = 'anime';
+      }
+
       return {
         key: `${r.media_type}-${r.id}`,
-        tipo: isMovie ? 'movie' : 'series',
+        tipo,
         titulo: rawTitle || 'Título Desconhecido',
         ano: ano && !Number.isNaN(ano) ? ano : null,
         generos,

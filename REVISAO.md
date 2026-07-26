@@ -45,6 +45,7 @@ Em ordem de valor:
 - **Dashboard mais rico:** distribuição por gênero, por década, nota média (o valor `avgRating` já é calculado mas não é exibido), tempo estimado assistido. Um gráfico (ex.: Chart.js) ajudaria.
 - **~~PWA / instalável e offline~~ ✅ IMPLEMENTADO:** manifest, service worker, ícones, banner automático e botão de instalar no celular (com instruções para iOS). Arquivos em `public/`.
 - **~~Tags~~ ✅ IMPLEMENTADO:** tags livres por título, usadas em filtro (interseção), Match e busca.
+- **~~Tipos de conteúdo~~ ✅ IMPLEMENTADO:** além de Filme e Série, agora há Anime, Documentário, Minissérie, Programa de TV e Stand-up/Especial. Seriados (série/anime/minissérie/programa) têm temporada+episódio; os demais usam progresso %. Filtro e Match viraram dropdowns; dashboard mostra "Por tipo"; o TMDB detecta documentário e anime automaticamente.
 - **Migração para TypeScript de verdade:** o arquivo era `.tsx` mas não tinha nenhum tipo. Definir uma interface `Item` evitaria muitos erros silenciosos.
 
 **Baixo valor / polimento**
