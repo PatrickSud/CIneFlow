@@ -1,4 +1,5 @@
 // Modal de detalhes de um título (sinopse, elenco, onde assistir).
+import { useState } from 'react';
 import type { Item, WatchProviders, Provider } from '../types';
 import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK, PRIORITIES } from '../lib/contentTypes';
 import { countWatchedEpisodes } from '../lib/library';
@@ -12,6 +13,7 @@ interface DetailModalProps {
   onEdit: (item: Item) => void;
   onOpenEpisodes: (item: Item) => void;
   onSetPriority: (id: string, value: number) => void;
+  onRefresh: (item: Item) => Promise<void>;
 }
 
 export default function DetailModal({
@@ -23,8 +25,14 @@ export default function DetailModal({
   onEdit,
   onOpenEpisodes,
   onSetPriority,
+  onRefresh,
 }: DetailModalProps) {
   const episodiosVistos = countWatchedEpisodes(item.episodios_vistos);
+  const [refreshing, setRefreshing] = useState(false);
+  const doRefresh = async () => {
+    setRefreshing(true);
+    try { await onRefresh(item); } finally { setRefreshing(false); }
+  };
   const runtime = item.runtime ?? 0;
   const numTemporadas = item.num_temporadas ?? 0;
   const numEpisodios = item.num_episodios ?? 0;
@@ -222,6 +230,16 @@ export default function DetailModal({
 
           {/* Ações */}
           <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+            {hasTmdbKey && (
+              <button
+                onClick={doRefresh}
+                disabled={refreshing}
+                title="Atualizar os dados deste título pelo TMDB"
+                className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 disabled:opacity-60 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl mr-auto"
+              >
+                {refreshing ? '⏳ Atualizando…' : '🔄 Atualizar TMDB'}
+              </button>
+            )}
             <button
               onClick={() => { onClose(); onEdit(item); }}
               className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"

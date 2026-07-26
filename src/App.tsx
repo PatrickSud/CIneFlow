@@ -1063,6 +1063,56 @@ export default function App() {
     setDetailItem((d) => (d && d.id === id ? { ...d, prioridade: value } : d));
   };
 
+  // Atualiza os metadados de UM título pelo TMDB (preserva dados pessoais)
+  const handleRefreshOne = async (item: Item) => {
+    if (!hasTmdbKey) { showToast('Configure a chave do TMDB primeiro.', 'error'); return; }
+    try {
+      let id = item.tmdb_id;
+      let media = item.tmdb_media_type;
+      let patch: Partial<Item> = {};
+      if (!id) {
+        const results = await searchTmdb(item.titulo);
+        const match = bestTmdbMatch({ titulo: item.titulo, ano: item.ano }, results);
+        if (match) {
+          id = match.tmdb_id;
+          media = match.media_type;
+          patch = {
+            tmdb_id: id,
+            tmdb_media_type: media,
+            generos: (!item.generos || item.generos.length === 0) && match.generos.length ? match.generos : item.generos,
+            poster_url: item.poster_url || match.poster_url,
+            overview: item.overview || match.overview,
+          };
+        }
+      }
+      if (id) {
+        const d = await fetchTmdbDetails({ id, mediaType: media || (isSerial(item.tipo) ? 'tv' : 'movie') });
+        if (d) {
+          patch = {
+            ...patch,
+            overview: d.overview || item.overview || '',
+            runtime: d.runtime || item.runtime || 0,
+            num_temporadas: d.num_temporadas || item.num_temporadas || 0,
+            num_episodios: d.num_episodios || item.num_episodios || 0,
+            elenco: d.elenco && d.elenco.length ? d.elenco : item.elenco,
+            backdrop_url: d.backdrop_url || item.backdrop_url || '',
+            tmdb_id: id,
+            tmdb_media_type: media || item.tmdb_media_type,
+          };
+        }
+      }
+      if (Object.keys(patch).length === 0) {
+        showToast('Não encontrei este título no TMDB.', 'error');
+        return;
+      }
+      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, ...patch } : it)));
+      setDetailItem((d) => (d && d.id === item.id ? { ...d, ...patch } : d));
+      showToast('Título atualizado pelo TMDB!');
+    } catch (e) {
+      showToast('Não foi possível atualizar agora.', 'error');
+    }
+  };
+
   // --- Filtros ---
   const processedItems = useMemo(() => {
     return items
@@ -2054,6 +2104,7 @@ export default function App() {
           onEdit={handleOpenEditModal}
           onOpenEpisodes={(it) => { setDetailItem(null); setEpisodeItem(it); }}
           onSetPriority={handleSetPriority}
+          onRefresh={handleRefreshOne}
         />
       )}
 
