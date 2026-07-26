@@ -92,6 +92,39 @@ export default function App() {
   const [tmdbSearched, setTmdbSearched] = useState(false);
   const [tmdbKeyInput, setTmdbKeyInput] = useState('');
   const [hasTmdbKey, setHasTmdbKey] = useState(() => Boolean(getTmdbKey()));
+  const [showTmdbHelp, setShowTmdbHelp] = useState(false);
+
+  // Busca web (TMDB) a partir da barra de pesquisa da página inicial
+  const [webResults, setWebResults] = useState([]);
+  const [webLoading, setWebLoading] = useState(false);
+  const [webError, setWebError] = useState('');
+
+  // Dispara a busca web (com debounce) quando há chave e uma consulta na Lista
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!hasTmdbKey || q.length < 2) {
+      setWebResults([]);
+      setWebError('');
+      setWebLoading(false);
+      return;
+    }
+    let active = true;
+    setWebLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchTmdb(q);
+        if (active) { setWebResults(results); setWebError(''); }
+      } catch (err) {
+        if (active) {
+          setWebResults([]);
+          setWebError(err.code === 'BAD_KEY' ? 'Chave TMDB inválida.' : 'Não foi possível buscar na web agora.');
+        }
+      } finally {
+        if (active) setWebLoading(false);
+      }
+    }, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [searchQuery, hasTmdbKey]);
 
   // Sorteador (CineMatch)
   const [matchType, setMatchType] = useState('all'); 
@@ -426,7 +459,7 @@ export default function App() {
   };
 
   // Preenche o formulário manual com um resultado do TMDB (para revisão antes de guardar)
-  const handlePickTmdb = (r) => {
+  const fillFormFromTmdb = (r) => {
     setEditingItem(null);
     setFormTitulo(r.titulo);
     setFormTipo(r.tipo);
@@ -443,8 +476,28 @@ export default function App() {
     setFormTags([]);
     setTagInput('');
     setModalMode('manual');
+  };
+
+  // A partir da aba Buscar (modal já aberto)
+  const handlePickTmdb = (r) => {
+    fillFormFromTmdb(r);
     showToast('Dados preenchidos — revise e guarde.', 'info');
   };
+
+  // A partir dos resultados web da página inicial (abre o modal)
+  const handleAddFromApi = (r) => {
+    fillFormFromTmdb(r);
+    setIsModalOpen(true);
+    showToast('Revise os dados e guarde na biblioteca.', 'info');
+  };
+
+  // O título (aproximadamente) já está na biblioteca?
+  const isInLibrary = (r) =>
+    items.some(
+      (i) =>
+        i.titulo.trim().toLowerCase() === r.titulo.trim().toLowerCase() &&
+        (!r.ano || Number(i.ano) === Number(r.ano))
+    );
 
   // Deletar Item
   const handleDeleteItem = (id, titulo) => {
@@ -695,7 +748,7 @@ export default function App() {
                 </span>
                 <input
                   type="text"
-                  placeholder="Pesquisar por título, notas ou género..."
+                  placeholder={hasTmdbKey ? 'Pesquisar na biblioteca e na web (TMDB)...' : 'Pesquisar por título, notas, género ou tag...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full pl-11 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
@@ -1013,6 +1066,71 @@ export default function App() {
             ) : (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-16 text-center max-w-md mx-auto">
                 <p className="text-sm text-slate-400">Nenhum título encontrado com a filtragem atual.</p>
+              </div>
+            )}
+
+            {/* ===== Resultados da Web (TMDB) ===== */}
+            {hasTmdbKey && searchQuery.trim().length >= 2 && (webLoading || webError || webResults.length > 0) && (
+              <div className="pt-4 space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-lg">🌐</span>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">
+                    Resultados da Web
+                  </h3>
+                  <span className="text-[10px] text-slate-500 font-semibold">via TMDB · não estão na sua biblioteca</span>
+                  {webLoading && (
+                    <div className="w-3.5 h-3.5 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin ml-1"></div>
+                  )}
+                </div>
+
+                {webError ? (
+                  <p className="text-[11px] text-red-300 bg-red-950/40 border border-red-500/20 rounded-lg px-3 py-2 max-w-md">
+                    {webError}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {webResults.map((r) => {
+                      const jaTem = isInLibrary(r);
+                      return (
+                        <div
+                          key={r.key}
+                          className="bg-slate-900/60 border border-dashed border-slate-700/70 rounded-2xl p-3 flex gap-3 items-start"
+                        >
+                          <img
+                            src={r.poster_url || POSTER_FALLBACK}
+                            alt={r.titulo}
+                            className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                            onError={(e) => { e.target.onerror = null; e.target.src = POSTER_FALLBACK; }}
+                          />
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[8px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded uppercase font-bold">
+                                {typeEmoji(r.tipo)} {typeLabel(r.tipo)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
+                            </div>
+                            <p className="text-xs font-bold text-white leading-tight line-clamp-2" title={r.titulo}>{r.titulo}</p>
+                            {r.generos.length > 0 && (
+                              <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>
+                            )}
+                            {jaTem ? (
+                              <span className="inline-block text-[10px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                                ✓ Na biblioteca
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleAddFromApi(r)}
+                                className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-colors"
+                              >
+                                + Adicionar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1426,6 +1544,13 @@ export default function App() {
             {/* SEÇÃO: BUSCA TMDB */}
             {modalMode === 'tmdb' ? (
               <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setShowTmdbHelp(true)}
+                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-purple-300 bg-purple-950/40 border border-purple-500/30 rounded-xl py-2 hover:bg-purple-950/60 transition-colors"
+                >
+                  <span>❓</span> Como criar a conta e obter a chave de API?
+                </button>
                 {!hasTmdbKey ? (
                   <div className="space-y-3 py-2">
                     <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2">
@@ -1797,6 +1922,64 @@ export default function App() {
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ==================== AJUDA: OBTER CHAVE DE API (TMDB) ==================== */}
+      {showTmdbHelp && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setShowTmdbHelp(false)}>
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-md w-full p-6 shadow-2xl my-8" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowTmdbHelp(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800"
+            >
+              ✕
+            </button>
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">🔑 Obter a chave de API (grátis)</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              A chave serve para o app buscar filmes e séries automaticamente. É gratuita e leva uns 3 minutos. Siga os passos:
+            </p>
+            <ol className="space-y-3 text-xs text-slate-300">
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">1</span>
+                <span>Abra <a href="https://www.themoviedb.org/signup" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/signup</a> e crie uma conta gratuita (nome de utilizador, email e senha).</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">2</span>
+                <span>Confirme a conta pelo email que o site enviar (verifique também o spam).</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">3</span>
+                <span>Já com sessão iniciada, abra <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer" className="text-purple-400 underline">themoviedb.org/settings/api</a>.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">4</span>
+                <span>Clique em <strong>“Criar”</strong> e escolha a opção <strong>“Developer”</strong> (uso pessoal).</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">5</span>
+                <span>Aceite os termos e preencha o formulário. Pode usar dados simples: tipo <em>Website</em>, nome “CineFlow”, URL <em>http://localhost</em> e uma descrição como “uso pessoal”.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">6</span>
+                <span>Na página que aparece, copie o valor <strong>“Chave da API (v3 auth)”</strong> — uma sequência de letras e números.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">7</span>
+                <span>Volte aqui, cole a chave no campo e toque em <strong>Guardar</strong>. Pronto! 🎉</span>
+              </li>
+            </ol>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-500">
+              Dica: use a <strong>“Chave da API”</strong>, e não o “Token de Leitura” (aquele texto bem longo).
+            </div>
+            <button
+              onClick={() => setShowTmdbHelp(false)}
+              className="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
+            >
+              Entendi
+            </button>
           </div>
         </div>
       )}

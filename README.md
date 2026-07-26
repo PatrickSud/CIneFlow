@@ -105,7 +105,9 @@ A busca por título, ano, gêneros e pôster **já está implementada** (aba **B
    - **Na interface (mais simples):** abra "Novo Título → Buscar" e cole a chave quando pedido. Ela fica salva só no seu navegador.
    - **No build (recomendado se você publicar):** copie `.env.example` para `.env` e preencha `VITE_TMDB_KEY=sua_chave`. No Vercel/Netlify, adicione a mesma variável de ambiente nas configurações do projeto.
 
-Depois é só digitar o nome do filme/série, escolher um resultado da lista, revisar os campos preenchidos e guardar.
+Depois é só digitar o nome do filme/série, escolher um resultado da lista, revisar os campos preenchidos e guardar. Dentro da aba **Buscar** há um botão **"Como criar a conta e obter a chave de API?"** com o passo a passo completo para quem nunca fez isso.
+
+Com a chave configurada, a **barra de pesquisa da página inicial** passa a buscar na sua biblioteca **e** na web (TMDB) ao mesmo tempo. Os resultados da web aparecem separados, com um botão **Adicionar** que abre o formulário já preenchido.
 
 > Observação: por ser um app 100% no navegador, a chave fica visível no código enviado ao cliente. Para uso pessoal com uma chave gratuita do TMDB isso é aceitável. Se um dia o app for público de verdade, o ideal é intermediar as chamadas por um pequeno backend/serverless.
 
