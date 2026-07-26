@@ -24,6 +24,8 @@
     "src/lib/contentTypes.ts",
     "src/components/StarRating.tsx",
     "src/components/Toast.tsx",
-    "src/components/ItemCard.tsx"
+    "src/components/ItemCard.tsx",
+    "src/components/Dashboard.tsx",
+    "src/components/DetailModal.tsx"
   ]
 }

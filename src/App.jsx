@@ -6,6 +6,8 @@ import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/co
 import StarRating from './components/StarRating';
 import Toast from './components/Toast';
 import ItemCard from './components/ItemCard';
+import Dashboard from './components/Dashboard';
+import DetailModal from './components/DetailModal';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -98,6 +100,7 @@ export default function App() {
   const [confirmState, setConfirmState] = useState({ open: false, id: null, titulo: '' });
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [syncState, setSyncState] = useState({ running: false, done: 0, total: 0, updated: 0 });
+  const [showLibMenu, setShowLibMenu] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [tagEdits, setTagEdits] = useState({});
 
@@ -283,7 +286,7 @@ export default function App() {
   // (itemHasAllTags vem de ./lib/library)
 
   // --- Funções do Formulário ---
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (mode) => {
     setEditingItem(null);
     setFormTitulo('');
     setFormTipo('movie');
@@ -304,7 +307,7 @@ export default function App() {
     setTmdbResults([]);
     setTmdbError('');
     setTmdbSearched(false);
-    setModalMode(hasTmdbKey ? 'tmdb' : 'manual');
+    setModalMode(mode || (hasTmdbKey ? 'tmdb' : 'manual'));
     setIsModalOpen(true);
   };
 
@@ -918,27 +921,54 @@ export default function App() {
                 {syncState.running ? '⏳' : '🔄'}
               </button>
             )}
-            <button
-              onClick={handleExport}
-              aria-label="Exportar biblioteca (backup JSON)"
-              title="Exportar biblioteca (backup JSON)"
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold uppercase tracking-wider rounded-xl border border-slate-700 flex items-center space-x-1.5 transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              <span className="hidden sm:inline">Backup</span>
-            </button>
+            {/* Menu consolidado: Biblioteca */}
+            <div className="relative">
+              <button
+                onClick={() => setShowLibMenu((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={showLibMenu}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg flex items-center space-x-1.5 transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span>Biblioteca</span>
+                <span className="text-[9px]">▾</span>
+              </button>
 
-            <button
-              onClick={handleOpenAddModal}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg flex items-center space-x-1.5 transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Novo Título / Importar</span>
-            </button>
+              {showLibMenu && (
+                <>
+                  {/* click-away */}
+                  <div className="fixed inset-0 z-40" onClick={() => setShowLibMenu(false)}></div>
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-2 w-60 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-1.5 text-left"
+                  >
+                    <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Adicionar</p>
+                    {hasTmdbKey && (
+                      <button role="menuitem" onClick={() => { setShowLibMenu(false); handleOpenAddModal('tmdb'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
+                        <span>🔎</span> Buscar no TMDB
+                      </button>
+                    )}
+                    <button role="menuitem" onClick={() => { setShowLibMenu(false); handleOpenAddModal('manual'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
+                      <span>🍿</span> Adicionar manualmente
+                    </button>
+                    <button role="menuitem" onClick={() => { setShowLibMenu(false); handleOpenAddModal('import'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
+                      <span>📥</span> Importar JSON
+                    </button>
+
+                    <div className="my-1 border-t border-slate-800"></div>
+                    <p className="px-3 pt-1 pb-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Gerir</p>
+                    <button role="menuitem" onClick={() => { setShowLibMenu(false); handleOpenAddModal('tmdb'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
+                      <span>⚙️</span> Configurar chave TMDB
+                    </button>
+                    <button role="menuitem" onClick={() => { setShowLibMenu(false); handleExport(); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
+                      <span>💾</span> Exportar backup (JSON)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
         </div>
@@ -1395,161 +1425,7 @@ export default function App() {
         )}
 
         {/* ==================== TAB: METRICAS E PROGRESSO ==================== */}
-        {activeTab === 'dashboard' && (
-          <section className="space-y-6 max-w-5xl mx-auto">
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Acervo Geral</p>
-                  <h3 className="text-2xl font-black text-white mt-1">{stats.total}</h3>
-                </div>
-                <div className="p-2.5 bg-purple-950/50 rounded-xl text-purple-400 text-sm">📁</div>
-              </div>
-
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filmes / Séries</p>
-                  <h3 className="text-xl font-black text-white mt-1">
-                    {stats.movies} <span className="text-xs text-slate-500">Filmes</span> / {stats.shows} <span className="text-xs text-slate-500">Séries</span>
-                  </h3>
-                </div>
-                <div className="p-2.5 bg-indigo-950/50 rounded-xl text-indigo-400 text-sm">🎬</div>
-              </div>
-
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Concluídos</p>
-                  <h3 className="text-2xl font-black text-emerald-400 mt-1">
-                    {stats.watched} <span className="text-xs text-slate-500">({stats.watchedPercent}%)</span>
-                  </h3>
-                </div>
-                <div className="p-2.5 bg-emerald-950/50 rounded-xl text-emerald-400 text-sm">✓</div>
-              </div>
-
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Em Curso</p>
-                  <h3 className="text-2xl font-black text-blue-400 mt-1">{stats.inProgress}</h3>
-                </div>
-                <div className="p-2.5 bg-blue-950/50 rounded-xl text-blue-400 text-sm">⏳</div>
-              </div>
-
-            </div>
-
-            {/* Conclusão Geral */}
-            <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-300">Progresso de Visualização Total</span>
-                <span className="text-purple-400 font-black">{stats.watched} de {stats.total} assistidos ({stats.watchedPercent}%)</span>
-              </div>
-              <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-850 p-0.5">
-                <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700" style={{ width: `${stats.watchedPercent}%` }}></div>
-              </div>
-              {stats.tempoAssistidoMin > 0 && (
-                <p className="text-[11px] text-slate-400 pt-1">
-                  ⏱️ Tempo total assistido (estimado): <strong className="text-slate-200">{formatMinutes(stats.tempoAssistidoMin)}</strong>
-                  <span className="text-slate-600"> — requer dados de duração do TMDB</span>
-                </p>
-              )}
-            </div>
-
-            {/* Distribuição por Tipo */}
-            {stats.byType.length > 0 && (
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">🗂️ Por Tipo de Conteúdo</h4>
-                <div className="flex flex-wrap gap-2">
-                  {stats.byType.map(t => (
-                    <div key={t.id} className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
-                      <span>{t.emoji}</span>
-                      <span className="text-xs font-semibold text-slate-300">{t.label}</span>
-                      <span className="text-xs font-black text-purple-400">{t.qtd}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Nota média + Distribuições */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-              {/* Distribuição por Gênero */}
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">🎭 Principais Géneros</h4>
-                  <span className="text-[10px] bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 font-black">
-                    Nota média ★ {stats.avgRating}
-                  </span>
-                </div>
-                {stats.topGenres.length > 0 ? (
-                  <div className="space-y-2 pt-1">
-                    {stats.topGenres.map(g => (
-                      <div key={g.nome} className="space-y-1">
-                        <div className="flex justify-between text-[10px] font-bold">
-                          <span className="text-slate-300">{g.nome}</span>
-                          <span className="text-slate-500">{g.qtd}</span>
-                        </div>
-                        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-850">
-                          <div
-                            className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700"
-                            style={{ width: `${(g.qtd / stats.topGenres[0].qtd) * 100}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic">Sem géneros registados ainda.</p>
-                )}
-              </div>
-
-              {/* Distribuição por Década */}
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">📅 Por Década de Lançamento</h4>
-                {stats.decades.length > 0 ? (
-                  <div className="flex items-end justify-between gap-1.5 pt-3 h-40">
-                    {stats.decades.map(d => {
-                      const maxDec = Math.max(...stats.decades.map(x => x.qtd));
-                      const h = Math.max(6, Math.round((d.qtd / maxDec) * 100));
-                      return (
-                        <div key={d.dec} className="flex-1 flex flex-col items-center justify-end h-full gap-1" title={`${d.qtd} título(s)`}>
-                          <span className="text-[9px] font-bold text-slate-400">{d.qtd}</span>
-                          <div
-                            className="w-full bg-gradient-to-t from-purple-600 to-indigo-400 rounded-t-md transition-all duration-700"
-                            style={{ height: `${h}%` }}
-                          ></div>
-                          <span className="text-[8px] font-bold text-slate-500">{`${String(d.dec).slice(2)}s`}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic">Sem anos registados ainda.</p>
-                )}
-              </div>
-
-            </div>
-
-            {/* Obras com Classificação de 5 Estrelas */}
-            <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">⭐ Títulos de Excelência (Classificação Máxima)</h4>
-              {items.filter(i => i.nota === 5).length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {items.filter(i => i.nota === 5).map(item => (
-                    <div key={item.id} className="bg-slate-950 p-2.5 rounded-xl border border-slate-850 flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-200 truncate pr-2">{item.titulo}</span>
-                      <span className="bg-amber-950 text-amber-400 text-[10px] px-2 py-0.5 rounded border border-amber-500/20 font-black">★ 5</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 italic">Nenhum título com nota máxima atribuída por enquanto.</p>
-              )}
-            </div>
-
-          </section>
-        )}
+        {activeTab === 'dashboard' && <Dashboard stats={stats} items={items} />}
 
       </main>
 
@@ -2143,167 +2019,16 @@ export default function App() {
           </div>
         </div>
       )}
-
       {/* ==================== DETALHES DO TÍTULO ==================== */}
       {detailItem && (
-        <div className="fixed inset-0 z-[65] flex items-start justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto" onClick={() => setDetailItem(null)}>
-          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-lg w-full shadow-2xl my-8 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            {/* Backdrop / cabeçalho */}
-            <div className="relative h-40 bg-slate-950">
-              {detailItem.backdrop_url ? (
-                <img src={detailItem.backdrop_url} alt="" className="w-full h-full object-cover opacity-60" />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-purple-900/40 to-slate-900"></div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
-              <button
-                onClick={() => setDetailItem(null)}
-                aria-label="Fechar"
-                className="absolute top-3 right-3 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg"
-              >
-                ✕
-              </button>
-              <div className="absolute bottom-3 left-4 right-4 flex items-end gap-3">
-                <img
-                  src={detailItem.poster_url || POSTER_FALLBACK}
-                  alt={detailItem.titulo}
-                  className="w-16 h-24 object-cover rounded-lg border border-slate-700 shadow-lg flex-shrink-0"
-                  onError={(e) => { e.target.onerror = null; e.target.src = POSTER_FALLBACK; }}
-                />
-                <div className="min-w-0 pb-1">
-                  <h3 className="text-base font-black text-white leading-tight drop-shadow">{detailItem.titulo}</h3>
-                  <p className="text-[11px] text-slate-300 font-bold">
-                    {typeEmoji(detailItem.tipo)} {typeLabel(detailItem.tipo)} · {detailItem.ano || 's/ ano'}
-                    {detailItem.nota > 0 && <span className="text-amber-400"> · ★ {detailItem.nota}/5</span>}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Meta */}
-              <div className="flex flex-wrap gap-2 text-[10px]">
-                <span className={`px-2 py-1 rounded-lg font-bold border ${
-                  detailItem.status_assistido === 'assistido' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/20' :
-                  detailItem.status_assistido === 'em_andamento' ? 'bg-blue-950/60 text-blue-300 border-blue-500/20' :
-                  'bg-slate-950 text-slate-400 border-slate-800'
-                }`}>
-                  {detailItem.status_assistido === 'assistido' ? '✓ Assistido' : detailItem.status_assistido === 'em_andamento' ? '🍿 Em Curso' : '⏳ Pendente'}
-                </span>
-                {detailItem.runtime > 0 && (
-                  <span className="px-2 py-1 rounded-lg font-bold bg-slate-950 text-slate-300 border border-slate-800">
-                    ⏱️ {isSerial(detailItem.tipo) ? `~${detailItem.runtime} min/ep` : `${Math.floor(detailItem.runtime / 60)}h ${detailItem.runtime % 60}min`}
-                  </span>
-                )}
-                {isSerial(detailItem.tipo) && detailItem.num_temporadas > 0 && (
-                  <span className="px-2 py-1 rounded-lg font-bold bg-slate-950 text-slate-300 border border-slate-800">
-                    📺 {detailItem.num_temporadas} temp. · {detailItem.num_episodios} ep.
-                  </span>
-                )}
-              </div>
-
-              {/* Gêneros + Tags */}
-              {(Array.isArray(detailItem.generos) && detailItem.generos.length > 0) || (Array.isArray(detailItem.tags) && detailItem.tags.length > 0) ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {(detailItem.generos || []).map((g, i) => (
-                    <span key={`g${i}`} className="text-[10px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">{g}</span>
-                  ))}
-                  {(detailItem.tags || []).map((t, i) => (
-                    <span key={`t${i}`} className="text-[10px] bg-purple-950/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">#{t}</span>
-                  ))}
-                </div>
-              ) : null}
-
-              {/* Sinopse */}
-              {detailItem.overview ? (
-                <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Sinopse</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">{detailItem.overview}</p>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 italic">Sem sinopse. Adicione uma chave TMDB e re-adicione o título para enriquecer os dados.</p>
-              )}
-
-              {/* Notas pessoais */}
-              {detailItem.notas_pessoais && (
-                <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">As suas notas</h4>
-                  <p className="text-xs text-slate-300 italic bg-slate-950/50 p-2 rounded-lg border border-slate-850">"{detailItem.notas_pessoais}"</p>
-                </div>
-              )}
-
-              {/* Elenco */}
-              {Array.isArray(detailItem.elenco) && detailItem.elenco.length > 0 && (
-                <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Elenco</h4>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {detailItem.elenco.map((c, i) => (
-                      <div key={i} className="flex-shrink-0 w-16 text-center">
-                        <img
-                          src={c.foto_url || POSTER_FALLBACK}
-                          alt={c.nome}
-                          className="w-16 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800"
-                          onError={(e) => { e.target.onerror = null; e.target.src = POSTER_FALLBACK; }}
-                        />
-                        <p className="text-[9px] text-slate-300 font-bold mt-1 leading-tight truncate" title={c.nome}>{c.nome}</p>
-                        {c.personagem && <p className="text-[8px] text-slate-500 leading-tight truncate" title={c.personagem}>{c.personagem}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Onde assistir */}
-              {hasTmdbKey && detailItem.tmdb_id && (
-                <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Onde assistir (Brasil)</h4>
-                  {providersLoading ? (
-                    <p className="text-[11px] text-slate-500">A procurar...</p>
-                  ) : providers && (providers.flatrate.length || providers.rent.length || providers.buy.length) ? (
-                    <div className="space-y-2">
-                      {[['Streaming', providers.flatrate], ['Alugar', providers.rent], ['Comprar', providers.buy]].map(([lbl, list]) =>
-                        list.length > 0 ? (
-                          <div key={lbl} className="flex items-center gap-2">
-                            <span className="text-[9px] text-slate-500 font-bold w-16 flex-shrink-0">{lbl}</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {list.map((p, i) => (
-                                <span key={i} className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1" title={p.nome}>
-                                  {p.logo_url ? <img src={p.logo_url} alt={p.nome} className="w-5 h-5 rounded" /> : null}
-                                  <span className="text-[9px] text-slate-300 font-semibold">{p.nome}</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null
-                      )}
-                      {providers.link && (
-                        <a href={providers.link} target="_blank" rel="noreferrer" className="inline-block text-[10px] text-purple-400 underline">Ver no TMDB / JustWatch</a>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-slate-500">Sem informação de streaming para o Brasil.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Ações */}
-              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
-                <button
-                  onClick={() => { const it = detailItem; setDetailItem(null); handleOpenEditModal(it); }}
-                  className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
-                >
-                  ✏️ Editar
-                </button>
-                <button
-                  onClick={() => setDetailItem(null)}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DetailModal
+          item={detailItem}
+          providers={providers}
+          providersLoading={providersLoading}
+          hasTmdbKey={hasTmdbKey}
+          onClose={() => setDetailItem(null)}
+          onEdit={handleOpenEditModal}
+        />
       )}
 
       {/* ==================== AJUDA: OBTER CHAVE DE API (TMDB) ==================== */}

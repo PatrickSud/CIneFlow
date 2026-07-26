@@ -102,7 +102,7 @@ A busca por título, ano, gêneros e pôster **já está implementada** (aba **B
 1. Crie uma conta gratuita em https://www.themoviedb.org.
 2. Vá em **Configurações → API** e solicite uma **API Key** (v3, uso pessoal, gratuito).
 3. Informe a chave de uma das duas formas:
-   - **Na interface (mais simples):** abra "Novo Título → Buscar" e cole a chave quando pedido. Ela fica salva só no seu navegador.
+   - **Na interface (mais simples):** no menu **Biblioteca ▾** (cabeçalho), escolha "Configurar chave TMDB" ou "Buscar no TMDB" e cole a chave quando pedido. Ela fica salva só no seu navegador.
    - **No build (recomendado se você publicar):** copie `.env.example` para `.env` e preencha `VITE_TMDB_KEY=sua_chave`. No Vercel/Netlify, adicione a mesma variável de ambiente nas configurações do projeto.
 
 Depois é só digitar o nome do filme/série, escolher um resultado da lista, revisar os campos preenchidos e guardar. Dentro da aba **Buscar** há um botão **"Como criar a conta e obter a chave de API?"** com o passo a passo completo para quem nunca fez isso.
@@ -135,4 +135,4 @@ Depois de instalado, abre em tela cheia e funciona offline (a biblioteca fica no
 
 ## Dados e backup
 
-Os títulos ficam no `localStorage` do navegador (chave `cineflow_extended_db_v3`). **Limpar os dados de navegação apaga a biblioteca.** Use o botão **Backup** no cabeçalho para exportar um `.json` de tempos em tempos — dá para reimportá-lo depois pelo modal **Novo Título → Importar JSON**.
+Os títulos ficam no `localStorage` do navegador (chave `cineflow_extended_db_v3`). **Limpar os dados de navegação apaga a biblioteca.** No menu **Biblioteca ▾** (cabeçalho) você encontra tudo num só lugar: adicionar (Buscar no TMDB / manualmente / Importar JSON), Configurar chave TMDB e **Exportar backup**. Faça um backup `.json` de tempos em tempos — dá para reimportá-lo depois em Biblioteca → Importar JSON.

@@ -48,6 +48,22 @@ export interface Item {
   tmdb_media_type?: string;
 }
 
+/** Estatísticas agregadas da biblioteca (usadas no Dashboard). */
+export interface Stats {
+  total: number;
+  movies: number;
+  shows: number;
+  watched: number;
+  inProgress: number;
+  unwatched: number;
+  watchedPercent: number;
+  avgRating: string;
+  topGenres: { nome: string; qtd: number }[];
+  decades: { dec: number; qtd: number }[];
+  byType: { id: string; label: string; emoji: string; qtd: number }[];
+  tempoAssistidoMin: number;
+}
+
 /** Preferências aprendidas do que a pessoa gostou (para recomendação). */
 export interface Preferences {
   genreWeight: Record<string, number>;
