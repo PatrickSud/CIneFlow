@@ -55,6 +55,18 @@ Em ordem de valor:
 - Tema claro/escuro (hoje é só escuro).
 - Testes automatizados (Vitest + Testing Library).
 
+## 5b. Implementado depois (rodada de melhorias)
+
+- **Detalhes ricos via TMDB:** ao adicionar (busca ou web), o app puxa sinopse, duração, nº de temporadas/episódios, elenco e imagem de fundo. `src/lib/tmdb.js` (`fetchTmdbDetails`, `fetchWatchProviders`).
+- **Tela de detalhes:** clique no pôster/título abre um modal com backdrop, sinopse, elenco (fotos) e **onde assistir** (streaming/aluguel/compra por região, ao vivo).
+- **CineMatch inteligente:** recomenda por afinidade (gêneros/tags que você bem avaliou), com opção de sorteio puro e "não repetir" na sessão.
+- **Adicionar direto:** resultados da web têm botão de 1 toque (além de "Detalhes…").
+- **Gerenciador de tags:** renomear/apagar tags em toda a biblioteca de uma vez.
+- **Exclusão estilizada:** modal de confirmação no lugar do `confirm()` nativo.
+- **Tema claro/escuro:** alternância no cabeçalho, persistida.
+- **Tempo total assistido** nas estatísticas (usa a duração vinda do TMDB).
+- **Qualidade:** lógica pura extraída para `src/lib/library.js` com **testes** (`npm test`, Vitest).
+
 ## 6. Observações de arquitetura
 
 - Um único componente `App` concentra toda a lógica e a UI. Conforme crescer, vale extrair `ItemCard`, `Modal`, `CineMatch`, `Dashboard` e `Toast` em arquivos próprios, e mover a lógica de dados para um hook `useLibrary()`. A integração TMDB já foi isolada em `src/lib/tmdb.js` como exemplo desse padrão.
