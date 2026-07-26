@@ -1,16 +1,17 @@
 // Funções puras da biblioteca do CineFlow — sem React, fáceis de testar.
+import type { Item, Preferences, Tipo } from '../types';
 
-export const normTag = (s) => String(s ?? '').trim();
+export const normTag = (s: unknown): string => String(s ?? '').trim();
 
 // Item possui TODAS as tags selecionadas? (interseção / AND, case-insensitive)
-export function itemHasAllTags(item, selected) {
+export function itemHasAllTags(item: Pick<Item, 'tags'>, selected: string[]): boolean {
   if (!selected || selected.length === 0) return true;
   const itemTags = (item.tags || []).map((t) => String(t).toLowerCase());
   return selected.every((sel) => itemTags.includes(String(sel).toLowerCase()));
 }
 
 // Embaralhamento Fisher-Yates (distribuição uniforme). Devolve um NOVO array.
-export function fisherYates(arr) {
+export function fisherYates<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -21,9 +22,9 @@ export function fisherYates(arr) {
 
 // Aprende preferências a partir do que a pessoa gostou (nota >= 3).
 // Quanto maior a nota, mais peso o gênero/tag recebe.
-export function computePreferences(items) {
-  const genreWeight = {};
-  const tagWeight = {};
+export function computePreferences(items: Item[]): Preferences {
+  const genreWeight: Record<string, number> = {};
+  const tagWeight: Record<string, number> = {};
   (items || []).forEach((i) => {
     const n = Number(i.nota) || 0;
     if (n < 3) return;
@@ -41,17 +42,25 @@ export function computePreferences(items) {
 }
 
 // Pontua um candidato de acordo com as preferências (tags pesam um pouco mais).
-export function scoreItem(item, prefs) {
-  const { genreWeight = {}, tagWeight = {} } = prefs || {};
+export function scoreItem(item: Pick<Item, 'generos' | 'tags'>, prefs: Preferences): number {
+  const { genreWeight = {}, tagWeight = {} } = prefs || ({} as Preferences);
   let score = 0;
   (item.generos || []).forEach((g) => { score += genreWeight[String(g).toLowerCase()] || 0; });
   (item.tags || []).forEach((t) => { score += (tagWeight[String(t).toLowerCase()] || 0) * 1.5; });
   return score;
 }
 
+export interface PickOptions {
+  count?: number;
+  smart?: boolean;
+  prefs?: Preferences | null;
+  exclude?: string[];
+}
+
 // Seleciona `count` itens do pool. Se smart, ordena por pontuação (com desempate
 // aleatório); senão, sorteio uniforme. `exclude` = ids a evitar (histórico).
-export function pickMatches(pool, { count = 3, smart = true, prefs = null, exclude = [] } = {}) {
+export function pickMatches(pool: Item[], options: PickOptions = {}): Item[] {
+  const { count = 3, smart = true, prefs = null, exclude = [] } = options;
   const excludeSet = new Set(exclude);
   let candidates = pool.filter((i) => !excludeSet.has(i.id));
   if (candidates.length === 0) candidates = [...pool]; // histórico esgotado: recomeça
@@ -67,7 +76,7 @@ export function pickMatches(pool, { count = 3, smart = true, prefs = null, exclu
 
 // Tempo total assistido (minutos): filmes/docs assistidos usam runtime;
 // seriados assistidos estimam runtime * nº de episódios.
-export function totalWatchMinutes(items, isSerialFn) {
+export function totalWatchMinutes(items: Item[], isSerialFn: (t: Tipo) => boolean): number {
   return (items || []).reduce((acc, i) => {
     if (i.status_assistido !== 'assistido') return acc;
     const rt = Number(i.runtime) || 0;
@@ -77,7 +86,7 @@ export function totalWatchMinutes(items, isSerialFn) {
   }, 0);
 }
 
-export function formatMinutes(min) {
+export function formatMinutes(min: number): string {
   const m = Math.max(0, Math.round(min || 0));
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);

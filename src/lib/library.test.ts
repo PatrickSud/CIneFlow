@@ -6,9 +6,10 @@ import {
   pickMatches,
   totalWatchMinutes,
   formatMinutes,
-} from './library.js';
+} from './library';
+import type { Tipo } from '../types';
 
-const isSerial = (t) => t === 'series' || t === 'anime' || t === 'miniseries' || t === 'tvshow';
+const isSerial = (t: Tipo) => t === 'series' || t === 'anime' || t === 'miniseries' || t === 'tvshow';
 
 describe('itemHasAllTags', () => {
   it('retorna true quando não há tags selecionadas', () => {
@@ -21,7 +22,7 @@ describe('itemHasAllTags', () => {
     expect(itemHasAllTags(item, ['Oliver', 'Sábado'])).toBe(false);
   });
   it('lida com item sem tags', () => {
-    expect(itemHasAllTags({}, ['x'])).toBe(false);
+    expect(itemHasAllTags({ tags: [] }, ['x'])).toBe(false);
   });
 });
 
@@ -30,7 +31,7 @@ describe('computePreferences / scoreItem', () => {
     { nota: 5, generos: ['Ação'], tags: ['Fav'] },
     { nota: 4, generos: ['Ação', 'Drama'], tags: [] },
     { nota: 2, generos: ['Comédia'], tags: [] }, // ignorado (nota < 3)
-  ];
+  ] as any;
   it('acumula peso só para nota >= 3', () => {
     const p = computePreferences(items);
     expect(p.genreWeight['ação']).toBe(5); // (5-2)=3 + (4-2)=2
@@ -50,7 +51,7 @@ describe('pickMatches', () => {
     { id: '1', generos: ['Ação'], tags: [] },
     { id: '2', generos: ['Comédia'], tags: [] },
     { id: '3', generos: ['Ação'], tags: [] },
-  ];
+  ] as any;
   it('respeita a quantidade e exclui o histórico', () => {
     const res = pickMatches(pool, { count: 2, smart: false, exclude: ['1'] });
     expect(res).toHaveLength(2);
@@ -72,7 +73,7 @@ describe('totalWatchMinutes / formatMinutes', () => {
     { status_assistido: 'assistido', tipo: 'movie', runtime: 120 },
     { status_assistido: 'assistido', tipo: 'series', runtime: 40, num_episodios: 10 },
     { status_assistido: 'nao_assistido', tipo: 'movie', runtime: 90 }, // ignorado
-  ];
+  ] as any;
   it('soma filmes (runtime) e séries (runtime * episódios) assistidos', () => {
     expect(totalWatchMinutes(items, isSerial)).toBe(120 + 40 * 10);
   });
