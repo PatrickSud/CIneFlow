@@ -111,6 +111,24 @@ Depois é só digitar o nome do filme/série, escolher um resultado da lista, re
 
 ---
 
+## Tags
+
+Cada título pode ter tags livres (ex.: "Família", "Oliver", "Domingo"). Crie-as no formulário (digite e Enter, ou clique numa tag já existente). Depois é só usá-las:
+
+- **Na Lista:** os chips de tags filtram a biblioteca. Selecionar várias mostra só o que tem **todas** elas (interseção) — ex.: "Oliver" + "Domingo".
+- **No Match:** as mesmas tags entram como critério do sorteio, junto com tipo, estado e nota.
+- **Busca:** a barra de pesquisa também encontra por tag.
+- Clicar num chip `#tag` dentro de um card já filtra a Lista por aquela tag.
+
+## Instalar no celular (PWA)
+
+O CineFlow é um Progressive Web App instalável. No celular (fora do modo já instalado) aparecem um banner automático e um botão flutuante **Instalar App**:
+
+- **Android/Chrome:** o botão dispara o instalador nativo do navegador.
+- **iPhone/iPad (Safari):** o botão abre as instruções (Partilhar → "Adicionar à Tela de Início"), já que o iOS não permite instalação automática.
+
+Depois de instalado, abre em tela cheia e funciona offline (a biblioteca fica no próprio aparelho). Requisito: o site precisa estar em **HTTPS** — o Vercel/Netlify já fornecem isso automaticamente.
+
 ## Dados e backup
 
 Os títulos ficam no `localStorage` do navegador (chave `cineflow_extended_db_v3`). **Limpar os dados de navegação apaga a biblioteca.** Use o botão **Backup** no cabeçalho para exportar um `.json` de tempos em tempos — dá para reimportá-lo depois pelo modal **Novo Título → Importar JSON**.

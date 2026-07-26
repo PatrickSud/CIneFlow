@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "CineFlow — A Minha Biblioteca",
+  "short_name": "CineFlow",
+  "description": "A sua biblioteca pessoal de filmes e séries: busca, sorteador e progresso.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "lang": "pt-BR",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

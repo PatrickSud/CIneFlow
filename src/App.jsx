@@ -63,6 +63,11 @@ export default function App() {
   const [formEpisodioAtual, setFormEpisodioAtual] = useState(1);
   const [formNota, setFormNota] = useState(0);
   const [formNotasPessoais, setFormNotasPessoais] = useState('');
+  const [formTags, setFormTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
+
+  // Filtro por tags na Lista (interseção — precisa ter todas)
+  const [filterTags, setFilterTags] = useState([]);
 
   // Busca TMDB (preenchimento automático de metadados)
   const [tmdbQuery, setTmdbQuery] = useState('');
@@ -78,6 +83,7 @@ export default function App() {
   const [matchStatus, setMatchStatus] = useState('nao_assistido'); 
   const [matchMinRating, setMatchMinRating] = useState(0); 
   const [matchCount, setMatchCount] = useState(3);
+  const [matchTags, setMatchTags] = useState([]);
   const [matchedItems, setMatchedItems] = useState([]);
   const [isShuffling, setIsShuffling] = useState(false);
   const [matchMessage, setMatchMessage] = useState('');
@@ -87,6 +93,118 @@ export default function App() {
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
+
+  // --- PWA / instalação no celular ---
+  const deferredPromptRef = useRef(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showIosHelp, setShowIosHelp] = useState(false);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    const ua = window.navigator.userAgent || '';
+    const ios = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const mobile =
+      ios ||
+      /Android/i.test(ua) ||
+      (window.matchMedia('(max-width: 768px)').matches && 'ontouchstart' in window);
+
+    setIsStandalone(standalone);
+    setIsIos(ios);
+    setIsMobile(mobile);
+
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('cineflow_install_dismissed') === '1'; } catch {}
+    if (mobile && !standalone && !dismissed) setShowInstallBanner(true);
+
+    const onBeforeInstall = (e) => {
+      e.preventDefault();
+      deferredPromptRef.current = e;
+      setCanInstall(true);
+    };
+    const onInstalled = () => {
+      deferredPromptRef.current = null;
+      setCanInstall(false);
+      setShowInstallBanner(false);
+      setIsStandalone(true);
+      showToast('CineFlow instalado! 🎉');
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    const dp = deferredPromptRef.current;
+    if (dp) {
+      dp.prompt();
+      try { await dp.userChoice; } catch {}
+      deferredPromptRef.current = null;
+      setCanInstall(false);
+      setShowInstallBanner(false);
+    } else if (isIos) {
+      setShowIosHelp(true);
+    } else {
+      showToast('No menu do navegador, toque em "Instalar app".', 'info');
+    }
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    try { localStorage.setItem('cineflow_install_dismissed', '1'); } catch {}
+  };
+
+  // --- Tags ---
+  // Lista global de todas as tags em uso (ordenada), para sugestões e filtros
+  const allTags = useMemo(() => {
+    const set = new Map(); // chave em minúsculas -> rótulo original
+    items.forEach(i => {
+      if (Array.isArray(i.tags)) {
+        i.tags.forEach(t => {
+          const label = String(t).trim();
+          if (label) set.set(label.toLowerCase(), label);
+        });
+      }
+    });
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
+  const addFormTag = (raw) => {
+    const label = String(raw).trim();
+    if (!label) return;
+    setFormTags(prev =>
+      prev.some(t => t.toLowerCase() === label.toLowerCase()) ? prev : [...prev, label]
+    );
+    setTagInput('');
+  };
+
+  const removeFormTag = (label) => {
+    setFormTags(prev => prev.filter(t => t !== label));
+  };
+
+  // Alterna uma tag em um array de seleção (usado no filtro da Lista e no Match)
+  const toggleTagIn = (setter, label) => {
+    setter(prev =>
+      prev.some(t => t.toLowerCase() === label.toLowerCase())
+        ? prev.filter(t => t.toLowerCase() !== label.toLowerCase())
+        : [...prev, label]
+    );
+  };
+
+  // Item possui TODAS as tags selecionadas? (interseção / AND)
+  const itemHasAllTags = (item, selected) => {
+    if (!selected || selected.length === 0) return true;
+    const itemTags = (item.tags || []).map(t => String(t).toLowerCase());
+    return selected.every(sel => itemTags.includes(sel.toLowerCase()));
   };
 
   // --- Funções do Formulário ---
@@ -104,6 +222,8 @@ export default function App() {
     setFormEpisodioAtual(1);
     setFormNota(0);
     setFormNotasPessoais('');
+    setFormTags([]);
+    setTagInput('');
     setTmdbQuery('');
     setTmdbResults([]);
     setTmdbError('');
@@ -126,6 +246,8 @@ export default function App() {
     setFormEpisodioAtual(item.episodio_atual || 1);
     setFormNota(item.nota || 0);
     setFormNotasPessoais(item.notas_pessoais || '');
+    setFormTags(Array.isArray(item.tags) ? item.tags : []);
+    setTagInput('');
     setModalMode('manual');
     setIsModalOpen(true);
   };
@@ -157,7 +279,8 @@ export default function App() {
       temporada_atual: formTipo === 'series' && formStatusAssistido === 'em_andamento' ? Number(formTemporadaAtual) : 0,
       episodio_atual: formTipo === 'series' && formStatusAssistido === 'em_andamento' ? Number(formEpisodioAtual) : 0,
       nota: Number(formNota),
-      notas_pessoais: formNotasPessoais.trim()
+      notas_pessoais: formNotasPessoais.trim(),
+      tags: formTags.map(t => t.trim()).filter(Boolean)
     };
 
     if (editingItem) {
@@ -211,8 +334,11 @@ export default function App() {
               status_assistido: status,
               progresso_porcentagem: progresso,
               temporadas_assistidas_max: Number(raw.temporadas_assistidas_max || 0),
+              temporada_atual: Number(raw.temporada_atual || 0),
+              episodio_atual: Number(raw.episodio_atual || 0),
               nota: Number(raw.nota || raw.rating || 0),
-              notas_pessoais: raw.notas_pessoais || raw.notes || ''
+              notas_pessoais: raw.notas_pessoais || raw.notes || '',
+              tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : []
             });
           });
 
@@ -299,6 +425,8 @@ export default function App() {
     setFormEpisodioAtual(1);
     setFormNota(0);
     setFormNotasPessoais('');
+    setFormTags([]);
+    setTagInput('');
     setModalMode('manual');
     showToast('Dados preenchidos — revise e guarde.', 'info');
   };
@@ -350,7 +478,9 @@ export default function App() {
         const notesMatch = item.notas_pessoais && item.notas_pessoais.toLowerCase().includes(q);
         const genreMatch = Array.isArray(item.generos) &&
           item.generos.some(g => g.toLowerCase().includes(q));
-        const matchesSearch = q === '' || titleMatch || notesMatch || genreMatch;
+        const tagSearchMatch = Array.isArray(item.tags) &&
+          item.tags.some(t => t.toLowerCase().includes(q));
+        const matchesSearch = q === '' || titleMatch || notesMatch || genreMatch || tagSearchMatch;
 
         const matchesType = filterType === 'all' || item.tipo === filterType;
 
@@ -359,7 +489,9 @@ export default function App() {
           matchesStatus = item.status_assistido === filterStatus;
         }
 
-        return matchesSearch && matchesType && matchesStatus;
+        const matchesTags = itemHasAllTags(item, filterTags);
+
+        return matchesSearch && matchesType && matchesStatus && matchesTags;
       })
       .sort((a, b) => {
         if (sortBy === 'title-asc') return a.titulo.localeCompare(b.titulo);
@@ -369,7 +501,7 @@ export default function App() {
         if (sortBy === 'ano-desc') return b.ano - a.ano;
         return 0;
       });
-  }, [items, searchQuery, filterType, filterStatus, sortBy]);
+  }, [items, searchQuery, filterType, filterStatus, sortBy, filterTags]);
 
   // --- Estatísticas ---
   const stats = useMemo(() => {
@@ -428,7 +560,8 @@ export default function App() {
         const matchT = matchType === 'all' || item.tipo === matchType;
         const matchS = matchStatus === 'all' || item.status_assistido === matchStatus;
         const matchR = item.nota >= matchMinRating;
-        return matchT && matchS && matchR;
+        const matchTagsOk = itemHasAllTags(item, matchTags);
+        return matchT && matchS && matchR && matchTagsOk;
       });
 
       if (pool.length === 0) {
@@ -499,6 +632,30 @@ export default function App() {
 
         </div>
       </header>
+
+      {/* Banner automático de instalação (celular) */}
+      {showInstallBanner && !isStandalone && (
+        <div className="bg-gradient-to-r from-purple-700 to-indigo-700 text-white px-4 py-3 flex items-center gap-3 shadow-lg">
+          <span className="text-xl">📲</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold leading-tight">Instale o CineFlow no seu telemóvel</p>
+            <p className="text-[10px] text-purple-100/90 leading-tight">Acesso rápido, tela cheia e uso offline.</p>
+          </div>
+          <button
+            onClick={handleInstallClick}
+            className="px-3 py-1.5 bg-white text-purple-700 text-xs font-black uppercase tracking-wider rounded-lg hover:bg-purple-50 transition-colors whitespace-nowrap"
+          >
+            Instalar
+          </button>
+          <button
+            onClick={dismissInstallBanner}
+            aria-label="Dispensar"
+            className="p-1 text-purple-200 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -621,6 +778,34 @@ export default function App() {
                 </div>
 
               </div>
+
+              {/* Filtro por Tags (interseção — mostra só o que tem todas as marcadas) */}
+              {allTags.length > 0 && (
+                <div className="pt-3 border-t border-slate-800/50">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Tags {filterTags.length > 0 && <span className="text-purple-400">({filterTags.length} ativas · precisa ter todas)</span>}
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allTags.map(t => {
+                      const active = filterTags.some(f => f.toLowerCase() === t.toLowerCase());
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => toggleTagIn(setFilterTags, t)}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                            active
+                              ? 'bg-purple-600 text-white border-purple-500'
+                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
+                          }`}
+                        >
+                          {active ? '✓ ' : '#'}{t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Cabeçalho de Resultados */}
@@ -628,12 +813,13 @@ export default function App() {
               <span className="font-semibold text-slate-400">
                 A exibir <strong className="text-white">{processedItems.length}</strong> de {items.length} registados
               </span>
-              {(searchQuery || filterType !== 'all' || filterStatus !== 'all') && (
+              {(searchQuery || filterType !== 'all' || filterStatus !== 'all' || filterTags.length > 0) && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
                     setFilterType('all');
                     setFilterStatus('all');
+                    setFilterTags([]);
                   }}
                   className="text-purple-400 hover:text-purple-300 font-bold underline"
                 >
@@ -702,6 +888,23 @@ export default function App() {
                           </div>
                         ) : (
                           <span className="text-[10px] text-slate-600 italic">Sem géneros</span>
+                        )}
+
+                        {/* Tags */}
+                        {Array.isArray(item.tags) && item.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {item.tags.map((t, tIdx) => (
+                              <button
+                                key={tIdx}
+                                type="button"
+                                onClick={() => { setFilterTags([t]); setActiveTab('lista'); }}
+                                title={`Filtrar por #${t}`}
+                                className="bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20 hover:border-purple-500/50 transition-colors"
+                              >
+                                #{t}
+                              </button>
+                            ))}
+                          </div>
                         )}
 
                         {/* Barra de Progresso / Temporadas */}
@@ -884,6 +1087,34 @@ export default function App() {
               </div>
 
             </div>
+
+            {/* Filtro por Tags no Match (interseção) */}
+            {allTags.length > 0 && (
+              <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                  Filtrar por Tags {matchTags.length > 0 && <span className="text-purple-400">({matchTags.length} ativas · precisa ter todas)</span>}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {allTags.map(t => {
+                    const active = matchTags.some(f => f.toLowerCase() === t.toLowerCase());
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => toggleTagIn(setMatchTags, t)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                          active
+                            ? 'bg-purple-600 text-white border-purple-500'
+                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
+                        }`}
+                      >
+                        {active ? '✓ ' : '#'}{t}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <button
               onClick={handleCineMatch}
@@ -1079,6 +1310,18 @@ export default function App() {
       <footer className="py-8 bg-slate-950 text-center text-slate-500 text-xs mb-20">
         <p>🍿 CineFlow — Armazenamento seguro de dados locais.</p>
       </footer>
+
+      {/* Botão flutuante de instalar — sempre visível no celular (fora do modo instalado) */}
+      {isMobile && !isStandalone && (
+        <button
+          onClick={handleInstallClick}
+          aria-label="Instalar o CineFlow no telemóvel"
+          className="fixed bottom-20 right-4 z-50 flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black uppercase tracking-wider rounded-full shadow-2xl shadow-purple-900/40 active:scale-95 transition-all"
+        >
+          <span className="text-sm">📲</span>
+          <span>Instalar App</span>
+        </button>
+      )}
 
       {/* ==================== MENU FLUTUANTE INFERIOR COMPACTO E MINIMALISTA ==================== */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-xs bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-full py-1.5 px-2 shadow-2xl flex justify-between items-center gap-1">
@@ -1452,6 +1695,59 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Tags</label>
+                  {/* Tags já adicionadas */}
+                  {formTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {formTags.map(t => (
+                        <span key={t} className="flex items-center gap-1 bg-purple-950/70 text-purple-200 text-[10px] font-bold px-2 py-1 rounded-lg border border-purple-500/30">
+                          {t}
+                          <button
+                            type="button"
+                            onClick={() => removeFormTag(t)}
+                            aria-label={`Remover tag ${t}`}
+                            className="text-purple-300 hover:text-white leading-none"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        addFormTag(tagInput);
+                      }
+                    }}
+                    placeholder="Digite uma tag e Enter (ex: Família, Oliver, Domingo)"
+                    className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                  {/* Sugestões: tags existentes ainda não adicionadas */}
+                  {allTags.filter(t => !formTags.some(f => f.toLowerCase() === t.toLowerCase())).length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1.5">
+                      {allTags
+                        .filter(t => !formTags.some(f => f.toLowerCase() === t.toLowerCase()))
+                        .slice(0, 12)
+                        .map(t => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => addFormTag(t)}
+                            className="text-[10px] text-slate-400 hover:text-purple-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-0.5 rounded-lg transition-colors"
+                          >
+                            + {t}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Anotações Pessoais</label>
                   <textarea
                     value={formNotasPessoais}
@@ -1481,6 +1777,37 @@ export default function App() {
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ==================== INSTRUÇÕES DE INSTALAÇÃO (iOS) ==================== */}
+      {showIosHelp && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowIosHelp(false)}>
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowIosHelp(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800"
+            >
+              ✕
+            </button>
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-3">📲 Instalar no iPhone / iPad</h3>
+            <p className="text-xs text-slate-400 mb-4">No Safari, siga estes passos:</p>
+            <ol className="space-y-3 text-xs text-slate-300">
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">1</span>
+                <span>Toque no botão <strong>Partilhar</strong> (o quadrado com a seta para cima), na barra do Safari.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">2</span>
+                <span>Deslize e toque em <strong>“Adicionar à Tela de Início”</strong>.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="flex-shrink-0 w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">3</span>
+                <span>Confirme em <strong>“Adicionar”</strong>. O CineFlow aparece como um app na sua tela.</span>
+              </li>
+            </ol>
           </div>
         </div>
       )}

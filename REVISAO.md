@@ -43,7 +43,8 @@ Em ordem de valor:
 **Médio valor**
 
 - **Dashboard mais rico:** distribuição por gênero, por década, nota média (o valor `avgRating` já é calculado mas não é exibido), tempo estimado assistido. Um gráfico (ex.: Chart.js) ajudaria.
-- **PWA / instalável e offline:** manifest + service worker para usar como app no celular.
+- **~~PWA / instalável e offline~~ ✅ IMPLEMENTADO:** manifest, service worker, ícones, banner automático e botão de instalar no celular (com instruções para iOS). Arquivos em `public/`.
+- **~~Tags~~ ✅ IMPLEMENTADO:** tags livres por título, usadas em filtro (interseção), Match e busca.
 - **Migração para TypeScript de verdade:** o arquivo era `.tsx` mas não tinha nenhum tipo. Definir uma interface `Item` evitaria muitos erros silenciosos.
 
 **Baixo valor / polimento**
