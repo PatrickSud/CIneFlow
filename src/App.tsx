@@ -1537,6 +1537,7 @@ export default function App() {
                     onDelete={handleDeleteItem}
                     onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
                     onAddToList={(it) => setAddToListItem(it)}
+                    onSetPriority={handleSetPriority}
                   />
                 ))}
               </div>

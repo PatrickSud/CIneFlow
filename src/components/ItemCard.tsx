@@ -1,6 +1,7 @@
 // Cartão de um título na lista.
+import { useState } from 'react';
 import type { Item } from '../types';
-import { typeLabel, typeEmoji, isSerial, POSTER_FALLBACK, priorityInfo } from '../lib/contentTypes';
+import { typeLabel, typeEmoji, isSerial, POSTER_FALLBACK, priorityInfo, PRIORITIES } from '../lib/contentTypes';
 import StarRating from './StarRating';
 
 interface ItemCardProps {
@@ -12,6 +13,7 @@ interface ItemCardProps {
   onDelete: (id: string, titulo: string) => void;
   onTagClick: (tag: string) => void;
   onAddToList: (item: Item) => void;
+  onSetPriority: (id: string, value: number) => void;
 }
 
 export default function ItemCard({
@@ -23,8 +25,10 @@ export default function ItemCard({
   onDelete,
   onTagClick,
   onAddToList,
+  onSetPriority,
 }: ItemCardProps) {
   const prio = priorityInfo(item.prioridade);
+  const [prioOpen, setPrioOpen] = useState(false);
   return (
     <div className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group">
 
@@ -190,6 +194,35 @@ export default function ItemCard({
           >
             ✓
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setPrioOpen((v) => !v)}
+              className={`p-1 border rounded-lg text-xs transition-colors ${prio.v > 0 ? prio.badge : 'bg-slate-950 text-slate-500 border-slate-800 hover:text-white'}`}
+              title={`Prioridade: ${prio.label}`}
+              aria-label="Definir prioridade"
+            >
+              🚩
+            </button>
+            {prioOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setPrioOpen(false)}></div>
+                <div className="absolute bottom-full right-0 mb-1 z-50 w-32 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1">
+                  {PRIORITIES.map((p) => {
+                    const on = (item.prioridade || 0) === p.v;
+                    return (
+                      <button
+                        key={p.v}
+                        onClick={() => { onSetPriority(item.id, p.v); setPrioOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${on ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800/60'}`}
+                      >
+                        <span>{p.dot}</span> {p.label} {on && <span className="ml-auto text-[9px] text-purple-400">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => onAddToList(item)}
             className="p-1 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-purple-400 border border-slate-800 rounded-lg text-xs"
