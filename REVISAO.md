@@ -67,6 +67,10 @@ Em ordem de valor:
 - **Tempo total assistido** nas estatísticas (usa a duração vinda do TMDB).
 - **Qualidade:** lógica pura extraída para `src/lib/library.js` com **testes** (`npm test`, Vitest).
 
+## 5c. Multi-usuário (Firebase)
+
+Login com Google (Firebase Auth) e biblioteca por usuário no Cloud Firestore (`users/{uid}`), com cache offline. Camada nova: `src/lib/firebase.ts`, `src/auth/AuthContext.tsx`, `src/components/LoginScreen.tsx` e `src/components/Tutorial.tsx`; o `App` carrega/grava a biblioteca do usuário logado, com migração da biblioteca local no 1º login e tutorial para novos usuários. Regras de segurança em `firestore.rules`.
+
 ## 6. Observações de arquitetura
 
 - Um único componente `App` concentra toda a lógica e a UI. Conforme crescer, vale extrair `ItemCard`, `Modal`, `CineMatch`, `Dashboard` e `Toast` em arquivos próprios, e mover a lógica de dados para um hook `useLibrary()`. A integração TMDB já foi isolada em `src/lib/tmdb.js` como exemplo desse padrão.

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { INITIAL_DATABASE } from './data/initialDatabase';
 import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
@@ -15,6 +14,10 @@ import TagManagerModal from './components/TagManagerModal';
 import TmdbHelpModal from './components/TmdbHelpModal';
 import IosInstallHelp from './components/IosInstallHelp';
 import AddEditModal from './components/AddEditModal';
+import Tutorial from './components/Tutorial';
+import { useAuth } from './auth/AuthContext';
+import { db } from './lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -36,28 +39,88 @@ function normalizeItem(raw: any): Item {
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, logout } = useAuth();
 
-  // --- Estado da Aplicação ---
-  const [items, setItems] = useState<Item[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map(normalizeItem);
-      } catch (e) {
-        console.error("Erro ao carregar dados salvos. Usando padrão.");
-      }
-    }
-    return (INITIAL_DATABASE as any[]).map(normalizeItem);
-  });
+  // --- Estado da Aplicação (biblioteca sincronizada com o Firestore) ---
+  const [items, setItems] = useState<Item[]>([]);
+  const [libLoaded, setLibLoaded] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [migratePrompt, setMigratePrompt] = useState<{ count: number } | null>(null);
+  const skipSave = useRef(false);   // pula a gravação logo após aplicar dados remotos
+  const onboardedRef = useRef(true);
 
+  // Carrega a biblioteca do usuário ao entrar
   useEffect(() => {
+    if (!user) return;
+    let active = true;
+    setLibLoaded(false);
+    (async () => {
+      try {
+        const ref = doc(db, 'users', user.uid);
+        const snap = await getDoc(ref);
+        if (!active) return;
+        if (snap.exists()) {
+          const data: any = snap.data();
+          skipSave.current = true;
+          setItems(Array.isArray(data.biblioteca) ? data.biblioteca.map(normalizeItem) : []);
+          onboardedRef.current = !!data.onboarded;
+          if (!data.onboarded) setShowTutorial(true);
+        } else {
+          // Novo usuário: verifica se há biblioteca local antiga para migrar
+          onboardedRef.current = false;
+          let legacy: any[] = [];
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) legacy = p; }
+          } catch {}
+          skipSave.current = true;
+          setItems([]);
+          if (legacy.length > 0) setMigratePrompt({ count: legacy.length });
+          else setShowTutorial(true);
+        }
+      } catch (e) {
+        console.error('Falha ao carregar a biblioteca do Firestore.', e);
+      } finally {
+        if (active) setLibLoaded(true);
+      }
+    })();
+    return () => { active = false; };
+  }, [user]);
+
+  // Grava a biblioteca no Firestore quando muda (com debounce)
+  useEffect(() => {
+    if (!user || !libLoaded) return;
+    if (skipSave.current) { skipSave.current = false; return; }
+    const t = setTimeout(() => {
+      setDoc(
+        doc(db, 'users', user.uid),
+        { biblioteca: items, onboarded: onboardedRef.current, updatedAt: Date.now() },
+        { merge: true }
+      ).catch((e: any) => console.error('Falha ao guardar no Firestore.', e));
+    }, 800);
+    return () => clearTimeout(t);
+  }, [items, user, libLoaded]);
+
+  // Migração da biblioteca local para a conta
+  const confirmMigrate = () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch (e) {
-      console.error("Não foi possível salvar no localStorage.", e);
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const p = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(p)) setItems(p.map(normalizeItem));
+    } catch {}
+    setMigratePrompt(null);
+    setShowTutorial(true);
+  };
+  const declineMigrate = () => { setMigratePrompt(null); setShowTutorial(true); };
+
+  // Conclui o tutorial e marca a conta como "onboarded"
+  const finishTutorial = () => {
+    setShowTutorial(false);
+    onboardedRef.current = true;
+    if (user) {
+      setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }).catch(() => {});
     }
-  }, [items]);
+  };
 
   const [activeTab, setActiveTab] = useState('lista');
 
@@ -904,6 +967,25 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
+            {user && (
+              <div className="flex items-center gap-1.5 mr-1">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || 'Utilizador'} className="w-7 h-7 rounded-full border border-slate-700" title={user.displayName || user.email || ''} referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-[11px] font-black text-white" title={user.displayName || user.email || ''}>
+                    {(user.displayName || user.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <button
+                  onClick={() => logout()}
+                  title="Terminar sessão"
+                  aria-label="Terminar sessão"
+                  className="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-sm rounded-xl border border-slate-700 transition-all"
+                >
+                  ⏻
+                </button>
+              </div>
+            )}
             {hasTmdbKey && (
               <button
                 onClick={() => setShowSyncConfirm(true)}
@@ -1601,6 +1683,32 @@ export default function App() {
 
       {/* ==================== INSTRUÇÕES DE INSTALAÇÃO (iOS) ==================== */}
       <IosInstallHelp open={showIosHelp} onClose={() => setShowIosHelp(false)} />
+
+      {/* ==================== CARREGANDO BIBLIOTECA ==================== */}
+      {!libLoaded && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-xs text-slate-400">A carregar a sua biblioteca…</p>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MIGRAÇÃO (biblioteca local -> conta) ==================== */}
+      <ConfirmDialog
+        open={!!migratePrompt}
+        icon="☁️"
+        title="Importar a sua biblioteca?"
+        confirmLabel="Importar"
+        tone="primary"
+        onConfirm={confirmMigrate}
+        onClose={declineMigrate}
+      >
+        Encontrámos <strong className="text-slate-200">{migratePrompt?.count ?? 0}</strong> título(s) guardado(s) neste dispositivo. Deseja importá-los para a sua conta e sincronizá-los em todos os aparelhos?
+      </ConfirmDialog>
+
+      {/* ==================== TUTORIAL DE BOAS-VINDAS ==================== */}
+      {showTutorial && <Tutorial onDone={finishTutorial} />}
 
       {/* ==================== TOAST DE NOTIFICAÇÃO ==================== */}
       <Toast toast={toast} />

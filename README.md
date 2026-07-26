@@ -115,6 +115,20 @@ O botão **🔄 (Atualizar TMDB)** no cabeçalho relê toda a biblioteca e atual
 
 ---
 
+## Contas e sincronização (Firebase)
+
+O CineFlow usa **login com Google** e guarda a biblioteca de cada usuário na nuvem (Cloud Firestore), então os mesmos dados aparecem em qualquer dispositivo após entrar. Funciona offline (cache) e sincroniza ao voltar a ligação.
+
+Para rodar/publicar com contas, é preciso um projeto Firebase (a config já está em `src/lib/firebase.ts`). Faltam três ajustes no **Firebase Console**:
+
+1. **Login Google:** Authentication → Sign-in method → ativar **Google**.
+2. **Regras do Firestore:** Firestore Database → Regras → cole o conteúdo de `firestore.rules` (na raiz) e **Publique**. Elas garantem que cada um só acessa os próprios dados.
+3. **Domínios autorizados:** Authentication → Settings → Authorized domains → adicione o domínio do deploy (ex.: `cineflow.vercel.app`). O `localhost` já vem liberado para desenvolvimento.
+
+No primeiro login, se houver uma biblioteca antiga guardada no navegador, o app pergunta se quer **importá-la** para a conta. Novos usuários veem um **tutorial** de boas-vindas.
+
+> Observação: as chaves web do Firebase (em `firebase.ts`) são públicas por design — a segurança vem das regras acima, não do sigilo da chave.
+
 ## Tags
 
 Cada título pode ter tags livres (ex.: "Família", "Oliver", "Domingo"). Crie-as no formulário (digite e Enter, ou clique numa tag já existente). Depois é só usá-las:

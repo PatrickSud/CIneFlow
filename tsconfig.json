@@ -32,6 +32,10 @@
     "src/components/TagManagerModal.tsx",
     "src/components/TmdbHelpModal.tsx",
     "src/components/IosInstallHelp.tsx",
-    "src/components/AddEditModal.tsx"
+    "src/components/AddEditModal.tsx",
+    "src/components/LoginScreen.tsx",
+    "src/components/Tutorial.tsx",
+    "src/auth/AuthContext.tsx",
+    "src/lib/firebase.ts"
   ]
 }

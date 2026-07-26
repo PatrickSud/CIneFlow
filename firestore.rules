@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Regras de segurança do Firestore para o CineFlow.
+// Cada usuário só pode ler/gravar o próprio documento (users/{uid}).
+// Cole estas regras em: Firebase Console -> Firestore Database -> Regras -> Publicar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
