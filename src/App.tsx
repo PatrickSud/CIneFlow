@@ -1212,17 +1212,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
-            {hasTmdbKey && (
-              <button
-                onClick={() => setShowSyncConfirm(true)}
-                disabled={syncState.running}
-                aria-label="Atualizar toda a biblioteca com dados do TMDB"
-                title="Atualizar metadados de toda a biblioteca via TMDB"
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-60 text-slate-200 text-sm rounded-xl border border-slate-700 transition-all"
-              >
-                {syncState.running ? '⏳' : '🔄'}
-              </button>
-            )}
             {/* Menu consolidado: Biblioteca */}
             <div className="relative" ref={libMenuRef}>
               <button
@@ -1257,6 +1246,16 @@ export default function App() {
                     <button role="menuitem" onClick={() => { setShowLibMenu(false); handleOpenAddModal('tmdb'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
                       <span>⚙️</span> Configurar chave TMDB
                     </button>
+                    {hasTmdbKey && (
+                      <button
+                        role="menuitem"
+                        onClick={() => { setShowLibMenu(false); setShowSyncConfirm(true); }}
+                        disabled={syncState.running}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                      >
+                        <span>{syncState.running ? '⏳' : '🔄'}</span> Atualizar TMDB
+                      </button>
+                    )}
                     <button role="menuitem" onClick={() => { setShowLibMenu(false); handleExport(); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors">
                       <span>💾</span> Exportar backup (JSON)
                     </button>
