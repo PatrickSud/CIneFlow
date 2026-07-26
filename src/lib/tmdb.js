@@ -124,6 +124,8 @@ export async function searchTmdb(query) {
 
       return {
         key: `${r.media_type}-${r.id}`,
+        tmdb_id: r.id,
+        media_type: r.media_type, // 'movie' | 'tv' (para buscar detalhes depois)
         tipo,
         titulo: rawTitle || 'Título Desconhecido',
         ano: ano && !Number.isNaN(ano) ? ano : null,
@@ -132,4 +134,70 @@ export async function searchTmdb(query) {
         overview: r.overview || '',
       };
     });
+}
+
+// --- Detalhes de um título ------------------------------------------------
+
+const BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
+const PROFILE_BASE = 'https://image.tmdb.org/t/p/w185';
+
+/**
+ * Busca detalhes ricos de um título: sinopse, duração, nº de temporadas/episódios,
+ * elenco principal e imagem de fundo (backdrop).
+ * @param {{id:number, mediaType:'movie'|'tv'}} params
+ */
+export async function fetchTmdbDetails({ id, mediaType }) {
+  const key = getTmdbKey();
+  if (!key || !id) return null;
+  const type = mediaType === 'tv' ? 'tv' : 'movie';
+  const res = await fetch(
+    `${API_BASE}/${type}/${id}?api_key=${key}&language=${LANG}&append_to_response=credits`
+  );
+  if (!res.ok) throw new Error('details');
+  const d = await res.json();
+
+  const cast = (d.credits?.cast || []).slice(0, 8).map((c) => ({
+    nome: c.name,
+    personagem: c.character || '',
+    foto_url: c.profile_path ? `${PROFILE_BASE}${c.profile_path}` : '',
+  }));
+
+  let runtime = 0;
+  if (type === 'movie') runtime = Number(d.runtime || 0);
+  else if (Array.isArray(d.episode_run_time) && d.episode_run_time.length)
+    runtime = Number(d.episode_run_time[0] || 0);
+
+  return {
+    overview: d.overview || '',
+    runtime, // minutos
+    num_temporadas: type === 'tv' ? Number(d.number_of_seasons || 0) : 0,
+    num_episodios: type === 'tv' ? Number(d.number_of_episodes || 0) : 0,
+    backdrop_url: d.backdrop_path ? `${BACKDROP_BASE}${d.backdrop_path}` : '',
+    elenco: cast,
+  };
+}
+
+/**
+ * Onde assistir (streaming/aluguel/compra) por região.
+ * @param {{id:number, mediaType:'movie'|'tv', region?:string}} params
+ */
+export async function fetchWatchProviders({ id, mediaType, region = 'BR' }) {
+  const key = getTmdbKey();
+  if (!key || !id) return { link: '', flatrate: [], rent: [], buy: [] };
+  const type = mediaType === 'tv' ? 'tv' : 'movie';
+  const res = await fetch(`${API_BASE}/${type}/${id}/watch/providers?api_key=${key}`);
+  if (!res.ok) throw new Error('providers');
+  const data = await res.json();
+  const r = (data.results && data.results[region]) || {};
+  const mapList = (arr) =>
+    (arr || []).map((p) => ({
+      nome: p.provider_name,
+      logo_url: p.logo_path ? `${PROFILE_BASE}${p.logo_path}` : '',
+    }));
+  return {
+    link: r.link || '',
+    flatrate: mapList(r.flatrate),
+    rent: mapList(r.rent),
+    buy: mapList(r.buy),
+  };
 }

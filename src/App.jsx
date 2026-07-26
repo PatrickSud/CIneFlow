@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { INITIAL_DATABASE } from './data/initialDatabase';
-import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv } from './lib/tmdb';
+import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
+import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes } from './lib/library';
 
 const POSTER_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'><rect width='100' height='150' fill='%231e293b'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%2364748b' font-size='10' font-family='sans-serif'>Sem Imagem</text></svg>";
 
@@ -54,6 +55,17 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('lista');
 
+  // Tema claro/escuro
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('cineflow_theme') || 'dark'; } catch { return 'dark'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cineflow_theme', theme); } catch {}
+    const bg = theme === 'light' ? '#eef2f6' : '#020617';
+    document.documentElement.style.backgroundColor = bg;
+    document.body.style.backgroundColor = bg;
+  }, [theme]);
+
   // Filtros da Lista
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); 
@@ -80,6 +92,9 @@ export default function App() {
   const [formNotasPessoais, setFormNotasPessoais] = useState('');
   const [formTags, setFormTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
+  // Metadados extras (enriquecidos via TMDB) que não têm campo visível no formulário
+  const emptyExtra = { overview: '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '', tmdb_id: null, tmdb_media_type: '' };
+  const [formExtra, setFormExtra] = useState(emptyExtra);
 
   // Filtro por tags na Lista (interseção — precisa ter todas)
   const [filterTags, setFilterTags] = useState([]);
@@ -93,6 +108,9 @@ export default function App() {
   const [tmdbKeyInput, setTmdbKeyInput] = useState('');
   const [hasTmdbKey, setHasTmdbKey] = useState(() => Boolean(getTmdbKey()));
   const [showTmdbHelp, setShowTmdbHelp] = useState(false);
+  const [confirmState, setConfirmState] = useState({ open: false, id: null, titulo: '' });
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [tagEdits, setTagEdits] = useState({});
 
   // Busca web (TMDB) a partir da barra de pesquisa da página inicial
   const [webResults, setWebResults] = useState([]);
@@ -126,15 +144,40 @@ export default function App() {
     return () => { active = false; clearTimeout(timer); };
   }, [searchQuery, hasTmdbKey]);
 
+  // Detalhes do título (modal de leitura)
+  const [detailItem, setDetailItem] = useState(null);
+  const [providers, setProviders] = useState(null);
+  const [providersLoading, setProvidersLoading] = useState(false);
+
+  useEffect(() => {
+    if (!detailItem || !hasTmdbKey || !detailItem.tmdb_id) { setProviders(null); return; }
+    let active = true;
+    setProvidersLoading(true);
+    fetchWatchProviders({
+      id: detailItem.tmdb_id,
+      mediaType: detailItem.tmdb_media_type || (isSerial(detailItem.tipo) ? 'tv' : 'movie'),
+      region: 'BR',
+    })
+      .then((p) => { if (active) setProviders(p); })
+      .catch(() => { if (active) setProviders(null); })
+      .finally(() => { if (active) setProvidersLoading(false); });
+    return () => { active = false; };
+  }, [detailItem, hasTmdbKey]);
+
   // Sorteador (CineMatch)
   const [matchType, setMatchType] = useState('all'); 
   const [matchStatus, setMatchStatus] = useState('nao_assistido'); 
   const [matchMinRating, setMatchMinRating] = useState(0); 
   const [matchCount, setMatchCount] = useState(3);
   const [matchTags, setMatchTags] = useState([]);
+  const [matchSmart, setMatchSmart] = useState(true);
+  const [matchHistory, setMatchHistory] = useState([]); // ids já sugeridos (evitar repetição)
   const [matchedItems, setMatchedItems] = useState([]);
   const [isShuffling, setIsShuffling] = useState(false);
   const [matchMessage, setMatchMessage] = useState('');
+
+  // Ao mudar os critérios, recomeça o histórico de "não repetir"
+  useEffect(() => { setMatchHistory([]); }, [matchType, matchStatus, matchMinRating, matchTags, matchSmart]);
 
   // Notificações (Toast)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -248,12 +291,7 @@ export default function App() {
     );
   };
 
-  // Item possui TODAS as tags selecionadas? (interseção / AND)
-  const itemHasAllTags = (item, selected) => {
-    if (!selected || selected.length === 0) return true;
-    const itemTags = (item.tags || []).map(t => String(t).toLowerCase());
-    return selected.every(sel => itemTags.includes(sel.toLowerCase()));
-  };
+  // (itemHasAllTags vem de ./lib/library)
 
   // --- Funções do Formulário ---
   const handleOpenAddModal = () => {
@@ -272,6 +310,7 @@ export default function App() {
     setFormNotasPessoais('');
     setFormTags([]);
     setTagInput('');
+    setFormExtra(emptyExtra);
     setTmdbQuery('');
     setTmdbResults([]);
     setTmdbError('');
@@ -296,6 +335,16 @@ export default function App() {
     setFormNotasPessoais(item.notas_pessoais || '');
     setFormTags(Array.isArray(item.tags) ? item.tags : []);
     setTagInput('');
+    setFormExtra({
+      overview: item.overview || '',
+      runtime: item.runtime || 0,
+      num_temporadas: item.num_temporadas || 0,
+      num_episodios: item.num_episodios || 0,
+      elenco: Array.isArray(item.elenco) ? item.elenco : [],
+      backdrop_url: item.backdrop_url || '',
+      tmdb_id: item.tmdb_id || null,
+      tmdb_media_type: item.tmdb_media_type || '',
+    });
     setModalMode('manual');
     setIsModalOpen(true);
   };
@@ -328,7 +377,15 @@ export default function App() {
       episodio_atual: isSerial(formTipo) && formStatusAssistido === 'em_andamento' ? Number(formEpisodioAtual) : 0,
       nota: Number(formNota),
       notas_pessoais: formNotasPessoais.trim(),
-      tags: formTags.map(t => t.trim()).filter(Boolean)
+      tags: formTags.map(t => t.trim()).filter(Boolean),
+      overview: formExtra.overview || '',
+      runtime: Number(formExtra.runtime) || 0,
+      num_temporadas: Number(formExtra.num_temporadas) || 0,
+      num_episodios: Number(formExtra.num_episodios) || 0,
+      elenco: Array.isArray(formExtra.elenco) ? formExtra.elenco : [],
+      backdrop_url: formExtra.backdrop_url || '',
+      tmdb_id: formExtra.tmdb_id || null,
+      tmdb_media_type: formExtra.tmdb_media_type || ''
     };
 
     if (editingItem) {
@@ -386,7 +443,15 @@ export default function App() {
               episodio_atual: Number(raw.episodio_atual || 0),
               nota: Number(raw.nota || raw.rating || 0),
               notas_pessoais: raw.notas_pessoais || raw.notes || '',
-              tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : []
+              tags: Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : [],
+              overview: raw.overview || '',
+              runtime: Number(raw.runtime || 0),
+              num_temporadas: Number(raw.num_temporadas || 0),
+              num_episodios: Number(raw.num_episodios || 0),
+              elenco: Array.isArray(raw.elenco) ? raw.elenco : [],
+              backdrop_url: raw.backdrop_url || '',
+              tmdb_id: raw.tmdb_id || null,
+              tmdb_media_type: raw.tmdb_media_type || ''
             });
           });
 
@@ -475,7 +540,26 @@ export default function App() {
     setFormNotasPessoais('');
     setFormTags([]);
     setTagInput('');
+    setFormExtra({ ...emptyExtra, overview: r.overview || '', tmdb_id: r.tmdb_id || null, tmdb_media_type: r.media_type || '' });
     setModalMode('manual');
+    // Enriquecimento assíncrono (sinopse completa, duração, temporadas, elenco, backdrop)
+    if (r.tmdb_id && r.media_type) {
+      fetchTmdbDetails({ id: r.tmdb_id, mediaType: r.media_type })
+        .then((d) => {
+          if (!d) return;
+          setFormExtra((prev) => ({
+            ...prev,
+            overview: d.overview || prev.overview,
+            runtime: d.runtime || 0,
+            num_temporadas: d.num_temporadas || 0,
+            num_episodios: d.num_episodios || 0,
+            elenco: d.elenco || [],
+            backdrop_url: d.backdrop_url || '',
+          }));
+          if (d.num_temporadas) setFormTemporadas(d.num_temporadas);
+        })
+        .catch(() => {});
+    }
   };
 
   // A partir da aba Buscar (modal já aberto)
@@ -484,11 +568,50 @@ export default function App() {
     showToast('Dados preenchidos — revise e guarde.', 'info');
   };
 
-  // A partir dos resultados web da página inicial (abre o modal)
+  // A partir dos resultados web da página inicial (abre o modal para revisão)
   const handleAddFromApi = (r) => {
     fillFormFromTmdb(r);
     setIsModalOpen(true);
     showToast('Revise os dados e guarde na biblioteca.', 'info');
+  };
+
+  // Adiciona direto à biblioteca (1 toque), enriquecendo em segundo plano
+  const handleQuickAddFromApi = async (r) => {
+    if (isInLibrary(r)) { showToast('Este título já está na biblioteca.', 'info'); return; }
+    let extra = { overview: r.overview || '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '' };
+    try {
+      if (r.tmdb_id && r.media_type) {
+        const d = await fetchTmdbDetails({ id: r.tmdb_id, mediaType: r.media_type });
+        if (d) extra = { ...extra, ...d };
+      }
+    } catch {}
+    const newItem = {
+      id: genId('custom'),
+      titulo: r.titulo,
+      tipo: r.tipo,
+      ano: Number(r.ano) || new Date().getFullYear(),
+      generos: Array.isArray(r.generos) ? r.generos : [],
+      poster_url: r.poster_url || '',
+      status_assistido: 'nao_assistido',
+      progresso_porcentagem: 0,
+      temporadas_assistidas_max: 0,
+      temporada_atual: 0,
+      episodio_atual: 0,
+      nota: 0,
+      notas_pessoais: '',
+      tags: [],
+      data_adicao: new Date().toISOString(),
+      overview: extra.overview,
+      runtime: extra.runtime,
+      num_temporadas: extra.num_temporadas,
+      num_episodios: extra.num_episodios,
+      elenco: extra.elenco,
+      backdrop_url: extra.backdrop_url,
+      tmdb_id: r.tmdb_id || null,
+      tmdb_media_type: r.media_type || '',
+    };
+    setItems((prev) => [newItem, ...prev]);
+    showToast(`"${r.titulo}" adicionado à biblioteca!`);
   };
 
   // O título (aproximadamente) já está na biblioteca?
@@ -499,13 +622,46 @@ export default function App() {
         (!r.ano || Number(i.ano) === Number(r.ano))
     );
 
-  // Deletar Item
+  // Deletar Item (abre confirmação estilizada)
   const handleDeleteItem = (id, titulo) => {
-    if (confirm(`Pretende remover "${titulo}" da sua biblioteca?`)) {
-      setItems(prev => prev.filter(item => item.id !== id));
-      setMatchedItems(prev => prev.filter(item => item.id !== id));
-      showToast('Registo excluído com sucesso!', 'info');
-    }
+    setConfirmState({ open: true, id, titulo });
+  };
+  const confirmDelete = () => {
+    const { id } = confirmState;
+    setItems(prev => prev.filter(item => item.id !== id));
+    setMatchedItems(prev => prev.filter(item => item.id !== id));
+    setConfirmState({ open: false, id: null, titulo: '' });
+    showToast('Registo excluído com sucesso!', 'info');
+  };
+
+  // --- Gerenciador de Tags (aplica a toda a biblioteca) ---
+  const renameTagGlobally = (oldLabel, newLabelRaw) => {
+    const newLabel = String(newLabelRaw).trim();
+    if (!newLabel || newLabel.toLowerCase() === oldLabel.toLowerCase()) return;
+    setItems(prev => prev.map(item => {
+      if (!Array.isArray(item.tags)) return item;
+      let changed = false;
+      const next = [];
+      item.tags.forEach(t => {
+        const val = t.toLowerCase() === oldLabel.toLowerCase() ? newLabel : t;
+        if (!next.some(x => x.toLowerCase() === val.toLowerCase())) next.push(val);
+        if (val !== t) changed = true;
+      });
+      return changed ? { ...item, tags: next } : item;
+    }));
+    setFilterTags(prev => prev.map(t => (t.toLowerCase() === oldLabel.toLowerCase() ? newLabel : t)));
+    setMatchTags(prev => prev.map(t => (t.toLowerCase() === oldLabel.toLowerCase() ? newLabel : t)));
+    showToast(`Tag "${oldLabel}" renomeada para "${newLabel}".`);
+  };
+  const deleteTagGlobally = (label) => {
+    setItems(prev => prev.map(item =>
+      Array.isArray(item.tags)
+        ? { ...item, tags: item.tags.filter(t => t.toLowerCase() !== label.toLowerCase()) }
+        : item
+    ));
+    setFilterTags(prev => prev.filter(t => t.toLowerCase() !== label.toLowerCase()));
+    setMatchTags(prev => prev.filter(t => t.toLowerCase() !== label.toLowerCase()));
+    showToast(`Tag "${label}" removida de toda a biblioteca.`, 'info');
   };
 
   // Alteração Rápida de Status
@@ -620,7 +776,9 @@ export default function App() {
       .filter(t => t.qtd > 0)
       .sort((a, b) => b.qtd - a.qtd);
 
-    return { total, movies, shows, watched, inProgress, unwatched, watchedPercent, avgRating, topGenres, decades, byType };
+    const tempoAssistidoMin = totalWatchMinutes(items, isSerial);
+
+    return { total, movies, shows, watched, inProgress, unwatched, watchedPercent, avgRating, topGenres, decades, byType, tempoAssistidoMin };
   }, [items]);
 
   // --- CineMatch ---
@@ -645,22 +803,23 @@ export default function App() {
         return;
       }
 
-      // Embaralhamento Fisher-Yates (distribuição uniforme, sem viés)
-      const shuffled = [...pool];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      const selected = shuffled.slice(0, Math.min(matchCount, shuffled.length));
+      const prefs = computePreferences(items);
+      const selected = pickMatches(pool, {
+        count: matchCount,
+        smart: matchSmart,
+        prefs,
+        exclude: matchHistory,
+      });
 
       setMatchedItems(selected);
+      setMatchHistory(prev => [...prev, ...selected.map(s => s.id)]);
       setIsShuffling(false);
-      showToast('Seleção CineMatch realizada!');
+      showToast(matchSmart ? 'Recomendações personalizadas!' : 'Seleção CineMatch realizada!');
     }, 1100);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-purple-600 pb-24">
+    <div className={`min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-purple-600 pb-24 ${theme === 'light' ? 'theme-light' : ''}`}>
       
       {/* Header Estável */}
       <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/85">
@@ -681,6 +840,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}
+              aria-label="Alternar tema claro/escuro"
+              title="Alternar tema claro/escuro"
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-sm rounded-xl border border-slate-700 transition-all"
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
             <button
               onClick={handleExport}
               aria-label="Exportar biblioteca (backup JSON)"
@@ -837,9 +1004,18 @@ export default function App() {
               {/* Filtro por Tags (interseção — mostra só o que tem todas as marcadas) */}
               {allTags.length > 0 && (
                 <div className="pt-3 border-t border-slate-800/50">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Tags {filterTags.length > 0 && <span className="text-purple-400">({filterTags.length} ativas · precisa ter todas)</span>}
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Tags {filterTags.length > 0 && <span className="text-purple-400">({filterTags.length} ativas · precisa ter todas)</span>}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowTagManager(true)}
+                      className="text-[10px] font-bold text-slate-500 hover:text-purple-300 underline"
+                    >
+                      ⚙️ Gerir tags
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {allTags.map(t => {
                       const active = filterTags.some(f => f.toLowerCase() === t.toLowerCase());
@@ -894,8 +1070,13 @@ export default function App() {
                     
                     {/* Header com Capa */}
                     <div className="flex items-start p-4 space-x-4">
-                      {/* Imagem do Pôster */}
-                      <div className="w-20 h-28 flex-shrink-0 bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-800 relative">
+                      {/* Imagem do Pôster (abre detalhes) */}
+                      <button
+                        type="button"
+                        onClick={() => setDetailItem(item)}
+                        title="Ver detalhes"
+                        className="w-20 h-28 flex-shrink-0 bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-800 relative cursor-pointer"
+                      >
                         <img
                           src={item.poster_url || POSTER_FALLBACK}
                           alt={item.titulo}
@@ -909,7 +1090,7 @@ export default function App() {
                         <div className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-200" title={typeLabel(item.tipo)}>
                           {typeEmoji(item.tipo)}
                         </div>
-                      </div>
+                      </button>
 
                       {/* Info do Card */}
                       <div className="flex-1 min-w-0 space-y-1.5">
@@ -928,7 +1109,11 @@ export default function App() {
                           </span>
                         </div>
 
-                        <h3 className="font-bold text-sm text-white leading-tight truncate group-hover:text-purple-300 transition-colors" title={item.titulo}>
+                        <h3
+                          onClick={() => setDetailItem(item)}
+                          className="font-bold text-sm text-white leading-tight truncate group-hover:text-purple-300 transition-colors cursor-pointer"
+                          title={item.titulo}
+                        >
                           {item.titulo}
                         </h3>
 
@@ -1118,12 +1303,22 @@ export default function App() {
                                 ✓ Na biblioteca
                               </span>
                             ) : (
-                              <button
-                                onClick={() => handleAddFromApi(r)}
-                                className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-colors"
-                              >
-                                + Adicionar
-                              </button>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  onClick={() => handleQuickAddFromApi(r)}
+                                  title="Adicionar direto (1 toque)"
+                                  className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-colors"
+                                >
+                                  + Adicionar
+                                </button>
+                                <button
+                                  onClick={() => handleAddFromApi(r)}
+                                  title="Adicionar revisando os detalhes"
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors"
+                                >
+                                  Detalhes…
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1237,12 +1432,24 @@ export default function App() {
               </div>
             )}
 
+            <label className="flex items-center gap-2 px-1 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={matchSmart}
+                onChange={(e) => setMatchSmart(e.target.checked)}
+                className="w-4 h-4 accent-purple-600"
+              />
+              <span className="text-[11px] font-semibold text-slate-300">
+                🧠 Recomendação inteligente <span className="text-slate-500 font-normal">(baseada nos seus gostos; senão, sorteio aleatório)</span>
+              </span>
+            </label>
+
             <button
               onClick={handleCineMatch}
               disabled={isShuffling}
               className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 disabled:opacity-60 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
             >
-              {isShuffling ? "A escolher..." : "🎲 Sortear Sugestões"}
+              {isShuffling ? "A escolher..." : (matchSmart ? "🧠 Recomendar" : "🎲 Sortear Sugestões")}
             </button>
 
             {/* Exibição das Indicações Sorteadas */}
@@ -1343,6 +1550,12 @@ export default function App() {
               <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-850 p-0.5">
                 <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700" style={{ width: `${stats.watchedPercent}%` }}></div>
               </div>
+              {stats.tempoAssistidoMin > 0 && (
+                <p className="text-[11px] text-slate-400 pt-1">
+                  ⏱️ Tempo total assistido (estimado): <strong className="text-slate-200">{formatMinutes(stats.tempoAssistidoMin)}</strong>
+                  <span className="text-slate-600"> — requer dados de duração do TMDB</span>
+                </p>
+              )}
             </div>
 
             {/* Distribuição por Tipo */}
@@ -1922,6 +2135,248 @@ export default function App() {
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ==================== CONFIRMAÇÃO DE EXCLUSÃO ==================== */}
+      {confirmState.open && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setConfirmState({ open: false, id: null, titulo: '' })}>
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 bg-red-950/60 border border-red-500/30 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🗑️</div>
+            <h3 className="text-sm font-black text-white text-center mb-1">Remover da biblioteca?</h3>
+            <p className="text-xs text-slate-400 text-center mb-5">
+              "<strong className="text-slate-200">{confirmState.titulo}</strong>" será apagado. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmState({ open: false, id: null, titulo: '' })}
+                className="flex-1 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== GERENCIADOR DE TAGS ==================== */}
+      {showTagManager && (
+        <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={() => setShowTagManager(false)}>
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-md w-full p-6 shadow-2xl my-8" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowTagManager(false)}
+              aria-label="Fechar"
+              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800"
+            >
+              ✕
+            </button>
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">⚙️ Gerir Tags</h3>
+            <p className="text-xs text-slate-400 mb-4">Renomear ou apagar afeta todos os títulos que usam a tag.</p>
+            {allTags.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">Ainda não há tags. Crie-as ao adicionar ou editar um título.</p>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                {allTags.map(t => {
+                  const key = t.toLowerCase();
+                  const count = items.filter(i => Array.isArray(i.tags) && i.tags.some(x => x.toLowerCase() === key)).length;
+                  const draft = tagEdits[key] ?? t;
+                  return (
+                    <div key={t} className="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl p-2">
+                      <input
+                        type="text"
+                        value={draft}
+                        onChange={(e) => setTagEdits(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="flex-1 min-w-0 py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                      <span className="text-[9px] text-slate-500 font-bold flex-shrink-0">{count}×</span>
+                      <button
+                        onClick={() => { renameTagGlobally(t, draft); setTagEdits(prev => { const n = { ...prev }; delete n[key]; return n; }); }}
+                        disabled={draft.trim() === '' || draft.trim().toLowerCase() === t.toLowerCase()}
+                        className="text-[10px] font-bold text-purple-300 disabled:text-slate-700 disabled:cursor-default bg-slate-950 border border-slate-800 px-2 py-1 rounded-lg hover:border-purple-500/40"
+                      >
+                        Renomear
+                      </button>
+                      <button
+                        onClick={() => deleteTagGlobally(t)}
+                        aria-label={`Apagar tag ${t}`}
+                        className="text-[10px] font-bold text-red-400 bg-slate-950 border border-slate-800 px-2 py-1 rounded-lg hover:border-red-500/40"
+                      >
+                        Apagar
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== DETALHES DO TÍTULO ==================== */}
+      {detailItem && (
+        <div className="fixed inset-0 z-[65] flex items-start justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto" onClick={() => setDetailItem(null)}>
+          <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-lg w-full shadow-2xl my-8 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Backdrop / cabeçalho */}
+            <div className="relative h-40 bg-slate-950">
+              {detailItem.backdrop_url ? (
+                <img src={detailItem.backdrop_url} alt="" className="w-full h-full object-cover opacity-60" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-purple-900/40 to-slate-900"></div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
+              <button
+                onClick={() => setDetailItem(null)}
+                aria-label="Fechar"
+                className="absolute top-3 right-3 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg"
+              >
+                ✕
+              </button>
+              <div className="absolute bottom-3 left-4 right-4 flex items-end gap-3">
+                <img
+                  src={detailItem.poster_url || POSTER_FALLBACK}
+                  alt={detailItem.titulo}
+                  className="w-16 h-24 object-cover rounded-lg border border-slate-700 shadow-lg flex-shrink-0"
+                  onError={(e) => { e.target.onerror = null; e.target.src = POSTER_FALLBACK; }}
+                />
+                <div className="min-w-0 pb-1">
+                  <h3 className="text-base font-black text-white leading-tight drop-shadow">{detailItem.titulo}</h3>
+                  <p className="text-[11px] text-slate-300 font-bold">
+                    {typeEmoji(detailItem.tipo)} {typeLabel(detailItem.tipo)} · {detailItem.ano || 's/ ano'}
+                    {detailItem.nota > 0 && <span className="text-amber-400"> · ★ {detailItem.nota}/5</span>}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Meta */}
+              <div className="flex flex-wrap gap-2 text-[10px]">
+                <span className={`px-2 py-1 rounded-lg font-bold border ${
+                  detailItem.status_assistido === 'assistido' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/20' :
+                  detailItem.status_assistido === 'em_andamento' ? 'bg-blue-950/60 text-blue-300 border-blue-500/20' :
+                  'bg-slate-950 text-slate-400 border-slate-800'
+                }`}>
+                  {detailItem.status_assistido === 'assistido' ? '✓ Assistido' : detailItem.status_assistido === 'em_andamento' ? '🍿 Em Curso' : '⏳ Pendente'}
+                </span>
+                {detailItem.runtime > 0 && (
+                  <span className="px-2 py-1 rounded-lg font-bold bg-slate-950 text-slate-300 border border-slate-800">
+                    ⏱️ {isSerial(detailItem.tipo) ? `~${detailItem.runtime} min/ep` : `${Math.floor(detailItem.runtime / 60)}h ${detailItem.runtime % 60}min`}
+                  </span>
+                )}
+                {isSerial(detailItem.tipo) && detailItem.num_temporadas > 0 && (
+                  <span className="px-2 py-1 rounded-lg font-bold bg-slate-950 text-slate-300 border border-slate-800">
+                    📺 {detailItem.num_temporadas} temp. · {detailItem.num_episodios} ep.
+                  </span>
+                )}
+              </div>
+
+              {/* Gêneros + Tags */}
+              {(Array.isArray(detailItem.generos) && detailItem.generos.length > 0) || (Array.isArray(detailItem.tags) && detailItem.tags.length > 0) ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {(detailItem.generos || []).map((g, i) => (
+                    <span key={`g${i}`} className="text-[10px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">{g}</span>
+                  ))}
+                  {(detailItem.tags || []).map((t, i) => (
+                    <span key={`t${i}`} className="text-[10px] bg-purple-950/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">#{t}</span>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Sinopse */}
+              {detailItem.overview ? (
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Sinopse</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">{detailItem.overview}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic">Sem sinopse. Adicione uma chave TMDB e re-adicione o título para enriquecer os dados.</p>
+              )}
+
+              {/* Notas pessoais */}
+              {detailItem.notas_pessoais && (
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">As suas notas</h4>
+                  <p className="text-xs text-slate-300 italic bg-slate-950/50 p-2 rounded-lg border border-slate-850">"{detailItem.notas_pessoais}"</p>
+                </div>
+              )}
+
+              {/* Elenco */}
+              {Array.isArray(detailItem.elenco) && detailItem.elenco.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Elenco</h4>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {detailItem.elenco.map((c, i) => (
+                      <div key={i} className="flex-shrink-0 w-16 text-center">
+                        <img
+                          src={c.foto_url || POSTER_FALLBACK}
+                          alt={c.nome}
+                          className="w-16 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800"
+                          onError={(e) => { e.target.onerror = null; e.target.src = POSTER_FALLBACK; }}
+                        />
+                        <p className="text-[9px] text-slate-300 font-bold mt-1 leading-tight truncate" title={c.nome}>{c.nome}</p>
+                        {c.personagem && <p className="text-[8px] text-slate-500 leading-tight truncate" title={c.personagem}>{c.personagem}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Onde assistir */}
+              {hasTmdbKey && detailItem.tmdb_id && (
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Onde assistir (Brasil)</h4>
+                  {providersLoading ? (
+                    <p className="text-[11px] text-slate-500">A procurar...</p>
+                  ) : providers && (providers.flatrate.length || providers.rent.length || providers.buy.length) ? (
+                    <div className="space-y-2">
+                      {[['Streaming', providers.flatrate], ['Alugar', providers.rent], ['Comprar', providers.buy]].map(([lbl, list]) =>
+                        list.length > 0 ? (
+                          <div key={lbl} className="flex items-center gap-2">
+                            <span className="text-[9px] text-slate-500 font-bold w-16 flex-shrink-0">{lbl}</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {list.map((p, i) => (
+                                <span key={i} className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1" title={p.nome}>
+                                  {p.logo_url ? <img src={p.logo_url} alt={p.nome} className="w-5 h-5 rounded" /> : null}
+                                  <span className="text-[9px] text-slate-300 font-semibold">{p.nome}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null
+                      )}
+                      {providers.link && (
+                        <a href={providers.link} target="_blank" rel="noreferrer" className="inline-block text-[10px] text-purple-400 underline">Ver no TMDB / JustWatch</a>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">Sem informação de streaming para o Brasil.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Ações */}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => { const it = detailItem; setDetailItem(null); handleOpenEditModal(it); }}
+                  className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+                >
+                  ✏️ Editar
+                </button>
+                <button
+                  onClick={() => setDetailItem(null)}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
