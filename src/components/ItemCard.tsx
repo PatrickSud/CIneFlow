@@ -101,6 +101,11 @@ export default function ItemCard({
             <span className="text-[10px] text-slate-600 italic">Sem gêneros</span>
           )}
 
+          {/* Classificação (estrelas) */}
+          <div className="flex items-center pt-0.5">
+            <StarRating value={item.nota || 0} onRate={(star) => onRate(item.id, star)} />
+          </div>
+
           {/* Tags */}
           {Array.isArray(item.tags) && item.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
@@ -173,14 +178,8 @@ export default function ItemCard({
         </p>
       )}
 
-      {/* Footer do Card */}
-      <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80 space-y-2.5">
-        {/* Estrelas */}
-        <div className="flex items-center">
-          <StarRating value={item.nota || 0} onRate={(star) => onRate(item.id, star)} />
-        </div>
-
-        {/* Ações (padronizadas) */}
+      {/* Footer do Card — ações padronizadas */}
+      <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80">
         <div className="grid grid-cols-5 gap-1.5">
           <button
             onClick={() => onToggleWatched(item.id)}
