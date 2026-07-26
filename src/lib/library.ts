@@ -130,6 +130,12 @@ export function bestTmdbMatch<T extends { titulo: string; ano: number | null }>(
   return best && (finalSim >= 0.5 || (finalSim > 0 && yearExact)) ? best : null;
 }
 
+// Conta quantos episódios foram marcados como vistos.
+export function countWatchedEpisodes(map?: Record<string, number[]>): number {
+  if (!map) return 0;
+  return Object.values(map).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+}
+
 export function formatMinutes(min: number): string {
   const m = Math.max(0, Math.round(min || 0));
   if (m < 60) return `${m} min`;

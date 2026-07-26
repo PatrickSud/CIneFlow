@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders } from './lib/tmdb';
-import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch } from './lib/library';
+import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch, countWatchedEpisodes } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
 import StarRating from './components/StarRating';
 import Toast from './components/Toast';
@@ -23,6 +23,7 @@ import { fetchSharedLists, createSharedList, loadListItems, saveListItems, setLi
 import CreateListModal from './components/CreateListModal';
 import ManageMembersModal from './components/ManageMembersModal';
 import AddToListModal from './components/AddToListModal';
+import EpisodeTrackerModal from './components/EpisodeTrackerModal';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -281,6 +282,26 @@ export default function App() {
   const libMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [addToListItem, setAddToListItem] = useState<Item | null>(null);
+  const [episodeItem, setEpisodeItem] = useState<Item | null>(null);
+
+  // Salva os episódios vistos e ajusta status/progresso automaticamente
+  const handleSaveEpisodes = (itemId: string, map: Record<string, number[]>, totalEpisodios: number) => {
+    setItems((prev) => prev.map((it) => {
+      if (it.id !== itemId) return it;
+      const watched = countWatchedEpisodes(map);
+      const total = totalEpisodios || it.num_episodios || 0;
+      let status = it.status_assistido;
+      let prog = it.progresso_porcentagem;
+      if (total > 0) {
+        if (watched >= total) { status = 'assistido'; prog = 100; }
+        else if (watched > 0) { status = 'em_andamento'; prog = Math.round((watched / total) * 100); }
+        else { prog = 0; }
+      }
+      return { ...it, episodios_vistos: map, status_assistido: status, progresso_porcentagem: prog };
+    }));
+    setEpisodeItem(null);
+    showToast('Episódios atualizados!');
+  };
 
   // Fecha os menus do cabeçalho ao clicar fora
   useEffect(() => {
@@ -1848,8 +1869,17 @@ export default function App() {
           hasTmdbKey={hasTmdbKey}
           onClose={() => setDetailItem(null)}
           onEdit={handleOpenEditModal}
+          onOpenEpisodes={(it) => { setDetailItem(null); setEpisodeItem(it); }}
         />
       )}
+
+      {/* ==================== RASTREAMENTO POR EPISÓDIO ==================== */}
+      <EpisodeTrackerModal
+        open={!!episodeItem}
+        item={episodeItem}
+        onClose={() => setEpisodeItem(null)}
+        onSave={handleSaveEpisodes}
+      />
 
       {/* ==================== AJUDA: OBTER CHAVE DE API (TMDB) ==================== */}
       <TmdbHelpModal open={showTmdbHelp} onClose={() => setShowTmdbHelp(false)} />

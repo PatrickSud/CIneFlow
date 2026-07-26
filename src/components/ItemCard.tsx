@@ -119,13 +119,30 @@ export default function ItemCard({
             </div>
           )}
 
-          {isSerial(item.tipo) && item.status_assistido === 'em_andamento' && ((item.temporada_atual ?? 0) > 0 || (item.episodio_atual ?? 0) > 0) && (
-            <div className="pt-1.5 flex items-center space-x-1">
-              <span className="text-[10px] bg-blue-950/60 text-blue-300 px-1.5 py-0.5 rounded font-bold border border-blue-900/40">
-                📺 T{item.temporada_atual || 1} · E{item.episodio_atual || 1}
-              </span>
-            </div>
-          )}
+          {isSerial(item.tipo) && (() => {
+            const epVistos = item.episodios_vistos
+              ? Object.values(item.episodios_vistos).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0)
+              : 0;
+            if (epVistos > 0) {
+              return (
+                <div className="pt-1.5 flex items-center space-x-1">
+                  <span className="text-[10px] bg-purple-950/60 text-purple-300 px-1.5 py-0.5 rounded font-bold border border-purple-500/20">
+                    📺 {epVistos}{(item.num_episodios ?? 0) > 0 ? `/${item.num_episodios}` : ''} ep.
+                  </span>
+                </div>
+              );
+            }
+            if (item.status_assistido === 'em_andamento' && ((item.temporada_atual ?? 0) > 0 || (item.episodio_atual ?? 0) > 0)) {
+              return (
+                <div className="pt-1.5 flex items-center space-x-1">
+                  <span className="text-[10px] bg-blue-950/60 text-blue-300 px-1.5 py-0.5 rounded font-bold border border-blue-900/40">
+                    📺 T{item.temporada_atual || 1} · E{item.episodio_atual || 1}
+                  </span>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {isSerial(item.tipo) && item.status_assistido !== 'em_andamento' && item.temporadas_assistidas_max > 0 && (
             <div className="pt-1.5 flex items-center space-x-1">

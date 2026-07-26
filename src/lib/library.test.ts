@@ -8,6 +8,7 @@ import {
   formatMinutes,
   titleSimilarity,
   bestTmdbMatch,
+  countWatchedEpisodes,
 } from './library';
 import type { Tipo } from '../types';
 
@@ -102,5 +103,15 @@ describe('titleSimilarity / bestTmdbMatch', () => {
   it('devolve null quando nada é plausível', () => {
     const results = [{ titulo: 'Totalmente Diferente', ano: 2010, tmdb_id: 1, media_type: 'movie' as const }];
     expect(bestTmdbMatch({ titulo: 'Interestelar', ano: 2014 }, results)).toBeNull();
+  });
+});
+
+describe('countWatchedEpisodes', () => {
+  it('soma episódios vistos de todas as temporadas', () => {
+    expect(countWatchedEpisodes({ '1': [1, 2, 3], '2': [1, 2] })).toBe(5);
+  });
+  it('lida com vazio/undefined', () => {
+    expect(countWatchedEpisodes(undefined)).toBe(0);
+    expect(countWatchedEpisodes({})).toBe(0);
   });
 });

@@ -40,6 +40,7 @@
     "src/lib/lists.ts",
     "src/components/CreateListModal.tsx",
     "src/components/ManageMembersModal.tsx",
-    "src/components/AddToListModal.tsx"
+    "src/components/AddToListModal.tsx",
+    "src/components/EpisodeTrackerModal.tsx"
   ]
 }

@@ -6,7 +6,7 @@
 //   2. Chave digitada pela pessoa na interface (salva no localStorage)
 //
 // Crie uma chave gratuita em: https://www.themoviedb.org/settings/api  (API Key v3)
-import type { Tipo, TmdbSearchResult, TmdbDetails, WatchProviders, Provider, CastMember } from '../types';
+import type { Tipo, TmdbSearchResult, TmdbDetails, WatchProviders, Provider, CastMember, TvSeason } from '../types';
 
 const API_BASE = 'https://api.themoviedb.org/3';
 const IMG_BASE = 'https://image.tmdb.org/t/p/w300';
@@ -168,6 +168,22 @@ export async function fetchTmdbDetails(
     backdrop_url: d.backdrop_path ? `${BACKDROP_BASE}${d.backdrop_path}` : '',
     elenco: cast,
   };
+}
+
+/** Temporadas de uma série (para o rastreamento por episódio). */
+export async function fetchTvSeasons(id: number): Promise<TvSeason[]> {
+  const key = getTmdbKey();
+  if (!key || !id) return [];
+  const res = await fetch(`${API_BASE}/tv/${id}?api_key=${key}&language=${LANG}`);
+  if (!res.ok) throw new Error('seasons');
+  const d = await res.json();
+  return (d.seasons || [])
+    .filter((s: any) => Number(s.season_number) >= 1 && Number(s.episode_count) > 0)
+    .map((s: any) => ({
+      season_number: Number(s.season_number),
+      name: s.name || `Temporada ${s.season_number}`,
+      episode_count: Number(s.episode_count),
+    }));
 }
 
 /** Onde assistir (streaming/aluguel/compra) por região. */

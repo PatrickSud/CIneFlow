@@ -1,6 +1,7 @@
 // Modal de detalhes de um título (sinopse, elenco, onde assistir).
 import type { Item, WatchProviders, Provider } from '../types';
 import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK } from '../lib/contentTypes';
+import { countWatchedEpisodes } from '../lib/library';
 
 interface DetailModalProps {
   item: Item;
@@ -9,6 +10,7 @@ interface DetailModalProps {
   hasTmdbKey: boolean;
   onClose: () => void;
   onEdit: (item: Item) => void;
+  onOpenEpisodes: (item: Item) => void;
 }
 
 export default function DetailModal({
@@ -18,7 +20,9 @@ export default function DetailModal({
   hasTmdbKey,
   onClose,
   onEdit,
+  onOpenEpisodes,
 }: DetailModalProps) {
+  const episodiosVistos = countWatchedEpisodes(item.episodios_vistos);
   const runtime = item.runtime ?? 0;
   const numTemporadas = item.num_temporadas ?? 0;
   const numEpisodios = item.num_episodios ?? 0;
@@ -92,7 +96,22 @@ export default function DetailModal({
                 📺 {numTemporadas} temp. · {numEpisodios} ep.
               </span>
             )}
+            {isSerial(item.tipo) && episodiosVistos > 0 && (
+              <span className="px-2 py-1 rounded-lg font-bold bg-purple-950/60 text-purple-300 border border-purple-500/20">
+                ✓ {episodiosVistos}{numEpisodios > 0 ? `/${numEpisodios}` : ''} ep. vistos
+              </span>
+            )}
           </div>
+
+          {/* Rastrear episódios (séries) */}
+          {isSerial(item.tipo) && (
+            <button
+              onClick={() => onOpenEpisodes(item)}
+              className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-purple-300 bg-purple-950/40 border border-purple-500/30 rounded-xl py-2 hover:bg-purple-950/60 transition-colors"
+            >
+              📺 Marcar episódios vistos
+            </button>
+          )}
 
           {/* Gêneros + Tags */}
           {(generos.length > 0 || tags.length > 0) && (

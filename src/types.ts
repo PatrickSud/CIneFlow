@@ -46,6 +46,15 @@ export interface Item {
   backdrop_url?: string;
   tmdb_id?: number | null;
   tmdb_media_type?: string;
+  // Rastreamento por episódio: temporada -> lista de episódios vistos
+  episodios_vistos?: Record<string, number[]>;
+}
+
+/** Uma temporada de série (estrutura vinda do TMDB). */
+export interface TvSeason {
+  season_number: number;
+  name: string;
+  episode_count: number;
 }
 
 /** Estatísticas agregadas da biblioteca (usadas no Dashboard). */
