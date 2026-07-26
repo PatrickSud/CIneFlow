@@ -37,7 +37,9 @@ Em ordem de valor:
 **Alto valor**
 
 - **~~Integração com API de metadados (TMDB)~~ ✅ IMPLEMENTADO:** aba "Buscar" ao adicionar um título — digite o nome e escolha um resultado; título, ano, gêneros e pôster são preenchidos automaticamente. Precisa de uma chave gratuita do TMDB (passo a passo no README). Arquivo `src/lib/tmdb.js`.
-- **Rastreamento por episódio para séries:** hoje só há "temporadas assistidas". Faltam episódios (Sx Ex) e progresso real de série.
+- **~~Rastreamento por episódio~~ ✅ IMPLEMENTADO:** marca episódios vistos por temporada (estrutura vinda do TMDB), com progresso e ajuste automático de status. `EpisodeTrackerModal`, `fetchTvSeasons`.
+- **~~Recomendações externas~~ ✅ IMPLEMENTADO:** aba "Descobrir" sugere títulos novos parecidos com os bem avaliados (TMDB), excluindo o que já está na biblioteca. `fetchTmdbRecommendations`.
+- **~~Watchlist com prioridade~~ ✅ IMPLEMENTADO:** prioridade por título (nenhuma/média/alta, botão 🚩) e ordenação "Prioridade (watchlist)".
 - **Confirmação de exclusão estilizada:** hoje usa o `confirm()` nativo do navegador, que destoa do visual.
 
 **Médio valor**

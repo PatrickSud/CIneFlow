@@ -1018,6 +1018,17 @@ export default function App() {
     }));
   };
 
+  // Alterna a prioridade na watchlist: nenhuma -> média -> alta -> nenhuma
+  const handleCyclePriority = (id: string) => {
+    setItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const next = ((item.prioridade || 0) + 1) % 3;
+      const label = next === 2 ? 'alta' : next === 1 ? 'média' : 'nenhuma';
+      showToast(`Prioridade: ${label}`, 'info');
+      return { ...item, prioridade: next };
+    }));
+  };
+
   // --- Filtros ---
   const processedItems = useMemo(() => {
     return items
@@ -1044,6 +1055,11 @@ export default function App() {
         if (sortBy === 'title-desc') return b.titulo.localeCompare(a.titulo);
         if (sortBy === 'rating-desc') return b.nota - a.nota;
         if (sortBy === 'newest') return new Date(b.data_adicao).getTime() - new Date(a.data_adicao).getTime();
+        if (sortBy === 'priority') {
+          const dp = (b.prioridade || 0) - (a.prioridade || 0);
+          if (dp !== 0) return dp;
+          return new Date(b.data_adicao).getTime() - new Date(a.data_adicao).getTime();
+        }
         if (sortBy === 'ano-desc') return b.ano - a.ano;
         return 0;
       });
@@ -1409,6 +1425,7 @@ export default function App() {
                     <option value="rating-desc">Melhor Classificação</option>
                     <option value="ano-desc">Mais Recentes (Lançamento)</option>
                     <option value="newest">Adicionados Recentemente</option>
+                    <option value="priority">🚩 Prioridade (watchlist)</option>
                   </select>
                 </div>
 
@@ -1486,6 +1503,7 @@ export default function App() {
                     onDelete={handleDeleteItem}
                     onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
                     onAddToList={(it) => setAddToListItem(it)}
+                    onCyclePriority={handleCyclePriority}
                   />
                 ))}
               </div>

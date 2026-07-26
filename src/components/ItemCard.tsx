@@ -12,6 +12,7 @@ interface ItemCardProps {
   onDelete: (id: string, titulo: string) => void;
   onTagClick: (tag: string) => void;
   onAddToList: (item: Item) => void;
+  onCyclePriority: (id: string) => void;
 }
 
 export default function ItemCard({
@@ -23,7 +24,13 @@ export default function ItemCard({
   onDelete,
   onTagClick,
   onAddToList,
+  onCyclePriority,
 }: ItemCardProps) {
+  const prio = item.prioridade || 0;
+  const prioClass =
+    prio === 2 ? 'bg-red-950 text-red-400 border-red-500/30' :
+    prio === 1 ? 'bg-amber-950 text-amber-400 border-amber-500/30' :
+    'bg-slate-950 text-slate-600 border-slate-800 hover:text-white';
   return (
     <div className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group">
 
@@ -181,6 +188,14 @@ export default function ItemCard({
             aria-label="Alternar estado assistido"
           >
             ✓
+          </button>
+          <button
+            onClick={() => onCyclePriority(item.id)}
+            className={`p-1 border rounded-lg text-xs transition-colors ${prioClass}`}
+            title={`Prioridade: ${prio === 2 ? 'alta' : prio === 1 ? 'média' : 'nenhuma'} (clique para alternar)`}
+            aria-label="Alternar prioridade na watchlist"
+          >
+            🚩
           </button>
           <button
             onClick={() => onAddToList(item)}

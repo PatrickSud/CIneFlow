@@ -48,6 +48,8 @@ export interface Item {
   tmdb_media_type?: string;
   // Rastreamento por episódio: temporada -> lista de episódios vistos
   episodios_vistos?: Record<string, number[]>;
+  // Prioridade na watchlist: 0 = nenhuma, 1 = média, 2 = alta
+  prioridade?: number;
 }
 
 /** Uma temporada de série (estrutura vinda do TMDB). */
