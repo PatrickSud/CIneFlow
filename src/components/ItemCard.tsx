@@ -226,14 +226,6 @@ export default function ItemCard({
             }
             return null;
           })()}
-
-          {isSerial(item.tipo) && item.status_assistido !== 'em_andamento' && item.temporadas_assistidas_max > 0 && (
-            <div className="pt-1.5 flex items-center space-x-1">
-              <span className="text-[10px] bg-indigo-950/60 text-indigo-300 px-1.5 py-0.5 rounded font-bold border border-indigo-900/30">
-                📺 {item.temporadas_assistidas_max} {item.temporadas_assistidas_max === 1 ? 'Temp.' : 'Temps.'}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
