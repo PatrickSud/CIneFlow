@@ -214,6 +214,20 @@ export async function fetchTmdbRecommendations(
     .map((r: any) => toResult(r, type, genres));
 }
 
+/** Títulos em alta (trending) no TMDB — 'week' (semana) ou 'day' (dia). */
+export async function fetchTmdbTrending(period: 'day' | 'week' = 'week'): Promise<TmdbSearchResult[]> {
+  const key = getTmdbKey();
+  if (!key) return [];
+  const res = await fetch(`${API_BASE}/trending/all/${period}?api_key=${key}&language=${LANG}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  let genres: { movie: GenreMap; tv: GenreMap } = { movie: {}, tv: {} };
+  try { genres = await loadGenres(key); } catch { /* segue sem nomes */ }
+  return (data.results || [])
+    .filter((r: any) => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path)
+    .map((r: any) => toResult(r, r.media_type, genres));
+}
+
 /** Temporadas de uma série (para o rastreamento por episódio). */
 export async function fetchTvSeasons(id: number): Promise<TvSeason[]> {
   const key = getTmdbKey();

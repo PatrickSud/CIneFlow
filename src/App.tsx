@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders, fetchTmdbRecommendations } from './lib/tmdb';
+import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders, fetchTmdbRecommendations, fetchTmdbTrending } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch, countWatchedEpisodes } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
 import StarRating from './components/StarRating';
@@ -329,6 +329,22 @@ export default function App() {
   const [recsError, setRecsError] = useState('');
   const [recsLoaded, setRecsLoaded] = useState(false);
 
+  // Em alta esta semana (trending TMDB)
+  const [trending, setTrending] = useState<TmdbSearchResult[]>([]);
+  const [trendingLoading, setTrendingLoading] = useState(false);
+
+  const loadTrending = useCallback(async () => {
+    if (!hasTmdbKey) return;
+    setTrendingLoading(true);
+    try {
+      setTrending(await fetchTmdbTrending('week'));
+    } catch (e) {
+      setTrending([]);
+    } finally {
+      setTrendingLoading(false);
+    }
+  }, [hasTmdbKey]);
+
   const loadRecommendations = useCallback(async () => {
     if (!hasTmdbKey) { setRecsError('Configure a chave do TMDB para receber recomendações.'); setRecsLoaded(true); return; }
     setRecsLoading(true);
@@ -369,10 +385,13 @@ export default function App() {
     }
   }, [items, hasTmdbKey]);
 
-  // Carrega as recomendações ao abrir a aba Descobrir (uma vez)
+  // Carrega recomendações + em alta ao abrir a aba Descobrir (uma vez)
   useEffect(() => {
-    if (activeTab === 'descobrir' && !recsLoaded && !recsLoading) loadRecommendations();
-  }, [activeTab, recsLoaded, recsLoading, loadRecommendations]);
+    if (activeTab === 'descobrir' && !recsLoaded && !recsLoading) {
+      loadRecommendations();
+      loadTrending();
+    }
+  }, [activeTab, recsLoaded, recsLoading, loadRecommendations, loadTrending]);
 
   // Salva os episódios vistos e ajusta status/progresso automaticamente
   const handleSaveEpisodes = (itemId: string, map: Record<string, number[]>, totalEpisodios: number) => {
@@ -1881,16 +1900,66 @@ export default function App() {
                   <span className="mr-2">✨</span> Descobrir
                 </h2>
                 <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                  Títulos novos, parecidos com os que você mais gostou (via TMDB). Não incluem o que já está na sua biblioteca.
+                  Veja o que está em alta e receba sugestões parecidas com o que você mais gostou (via TMDB).
                 </p>
               </div>
               <button
-                onClick={loadRecommendations}
+                onClick={() => { loadRecommendations(); loadTrending(); }}
                 disabled={recsLoading}
                 className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 whitespace-nowrap transition-all"
               >
                 {recsLoading ? '...' : '↻ Atualizar'}
               </button>
+            </div>
+
+            {/* Em alta esta semana */}
+            {(trendingLoading || trending.length > 0) && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-lg">🔥</span>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Em alta esta semana</h3>
+                  {trendingLoading && <div className="w-3.5 h-3.5 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {trending.map((r) => {
+                    const jaTem = isInLibrary(r);
+                    return (
+                      <div key={r.key} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 flex gap-3 items-start">
+                        <img
+                          src={r.poster_url || POSTER_FALLBACK}
+                          alt={r.titulo}
+                          className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
+                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[8px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded uppercase font-bold">
+                              {typeEmoji(r.tipo)} {typeLabel(r.tipo)}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
+                          </div>
+                          <p className="text-xs font-bold text-white leading-tight line-clamp-2" title={r.titulo}>{r.titulo}</p>
+                          {r.generos.length > 0 && <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>}
+                          {jaTem ? (
+                            <span className="inline-block text-[10px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-500/20 px-2 py-1 rounded-lg">✓ Na biblioteca</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                              <button onClick={() => handleQuickAddFromApi(r)} className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-colors">+ Adicionar</button>
+                              <button onClick={() => handleAddFromApi(r)} className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors">Detalhes…</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recomendados para você */}
+            <div className="flex items-center gap-2 px-1 pt-2">
+              <span className="text-lg">✨</span>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Recomendados para você</h3>
             </div>
 
             {recsLoading ? (
