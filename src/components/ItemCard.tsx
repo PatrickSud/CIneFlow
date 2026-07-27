@@ -14,6 +14,9 @@ interface ItemCardProps {
   onTagClick: (tag: string) => void;
   onAddToList: (item: Item) => void;
   onSetPriority: (id: string, value: number) => void;
+  allTags: string[];
+  onAddItemTag: (id: string, tag: string) => void;
+  onRemoveItemTag: (id: string, tag: string) => void;
 }
 
 export default function ItemCard({
@@ -26,9 +29,22 @@ export default function ItemCard({
   onTagClick,
   onAddToList,
   onSetPriority,
+  allTags,
+  onAddItemTag,
+  onRemoveItemTag,
 }: ItemCardProps) {
   const prio = priorityInfo(item.prioridade);
   const [prioOpen, setPrioOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [tagDraft, setTagDraft] = useState('');
+  const itemTags = item.tags || [];
+  const suggestTags = allTags.filter((t) => !itemTags.some((x) => x.toLowerCase() === t.toLowerCase()));
+  const addTagFromDraft = () => {
+    const v = tagDraft.trim();
+    if (!v) return;
+    onAddItemTag(item.id, v);
+    setTagDraft('');
+  };
   return (
     <div className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group">
 
@@ -80,6 +96,62 @@ export default function ItemCard({
             </span>
           </div>
 
+          {/* Tags do título: botão +TAG + chips */}
+          <div className="relative flex items-center flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => setTagOpen((v) => !v)}
+              className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-slate-600 text-slate-400 hover:text-purple-300 hover:border-purple-500/50 transition-colors"
+            >
+              + Tag
+            </button>
+            {itemTags.map((t, tIdx) => (
+              <span key={tIdx} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20">
+                <button type="button" onClick={() => onTagClick(t)} title={`Filtrar por #${t}`} className="hover:text-purple-100">#{t}</button>
+                <button type="button" onClick={() => onRemoveItemTag(item.id, t)} title="Remover tag" className="text-purple-400/60 hover:text-red-300 font-bold leading-none">×</button>
+              </span>
+            ))}
+            {tagOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setTagOpen(false)}></div>
+                <div className="absolute top-full left-0 mt-1 z-50 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2">
+                  <div className="flex gap-1 mb-2">
+                    <input
+                      type="text"
+                      value={tagDraft}
+                      onChange={(e) => setTagDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTagFromDraft(); } }}
+                      placeholder="Nova tag…"
+                      className="flex-1 min-w-0 py-1 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 text-[11px] focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTagFromDraft}
+                      disabled={!tagDraft.trim()}
+                      className="px-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-sm font-bold rounded-lg"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {suggestTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                      {suggestTags.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => onAddItemTag(item.id, t)}
+                          className="text-[10px] text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 hover:text-purple-300 px-1.5 py-0.5 rounded-lg transition-colors"
+                        >
+                          + {t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           <h3
             onClick={() => onOpenDetail(item)}
             className="font-bold text-sm text-white leading-tight truncate group-hover:text-purple-300 transition-colors cursor-pointer"
@@ -106,25 +178,8 @@ export default function ItemCard({
             <StarRating value={item.nota || 0} onRate={(star) => onRate(item.id, star)} />
           </div>
 
-          {/* Tags */}
-          {Array.isArray(item.tags) && item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {item.tags.map((t, tIdx) => (
-                <button
-                  key={tIdx}
-                  type="button"
-                  onClick={() => onTagClick(t)}
-                  title={`Filtrar por #${t}`}
-                  className="bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20 hover:border-purple-500/50 transition-colors"
-                >
-                  #{t}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Barra de Progresso / Temporadas */}
-          {item.status_assistido === 'em_andamento' && item.progresso_porcentagem > 0 && (
+          {/* Barra de Progresso (filmes) */}
+          {!isSerial(item.tipo) && item.status_assistido === 'em_andamento' && item.progresso_porcentagem > 0 && (
             <div className="space-y-1 pt-1">
               <div className="flex justify-between items-center text-[9px] font-bold text-blue-400">
                 <span>Progresso</span>
@@ -140,12 +195,16 @@ export default function ItemCard({
             const epVistos = item.episodios_vistos
               ? Object.values(item.episodios_vistos).reduce((a, v) => a + (Array.isArray(v) ? v.length : 0), 0)
               : 0;
-            if (epVistos > 0) {
+            const total = item.num_episodios ?? 0;
+            // Barra de progresso de episódios + contagem à direita
+            if (total > 0 || epVistos > 0) {
+              const pct = total > 0 ? Math.min(100, Math.round((epVistos / total) * 100)) : 0;
               return (
-                <div className="pt-1.5 flex items-center space-x-1">
-                  <span className="text-[10px] bg-purple-950/60 text-purple-300 px-1.5 py-0.5 rounded font-bold border border-purple-500/20">
-                    📺 {epVistos}{(item.num_episodios ?? 0) > 0 ? `/${item.num_episodios}` : ''} ep.
-                  </span>
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="flex-1 bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-850">
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-300 whitespace-nowrap">📺 {epVistos}/{total || '?'} ep.</span>
                 </div>
               );
             }

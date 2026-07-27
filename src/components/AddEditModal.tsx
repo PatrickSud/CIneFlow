@@ -466,19 +466,30 @@ export default function AddEditModal(props: AddEditModalProps) {
                       ))}
                     </div>
                   )}
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
-                        addFormTag(tagInput);
-                      }
-                    }}
-                    placeholder="Digite uma tag e Enter (ex: Família, Oliver, Domingo)"
-                    className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          addFormTag(tagInput);
+                        }
+                      }}
+                      placeholder="Digite uma tag (ex: Família, Oliver)"
+                      className="flex-1 min-w-0 py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-700 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addFormTag(tagInput)}
+                      disabled={!tagInput.trim()}
+                      aria-label="Adicionar tag"
+                      className="px-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-base font-bold rounded-xl"
+                    >
+                      +
+                    </button>
+                  </div>
                   {/* Sugestões: tags existentes ainda não adicionadas */}
                   {allTags.filter(t => !formTags.some(f => f.toLowerCase() === t.toLowerCase())).length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1.5">

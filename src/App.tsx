@@ -1063,6 +1063,23 @@ export default function App() {
     setDetailItem((d) => (d && d.id === id ? { ...d, prioridade: value } : d));
   };
 
+  // Adicionar/remover tag de um título direto pelo card
+  const handleAddItemTag = (id: string, tag: string) => {
+    const t = tag.trim();
+    if (!t) return;
+    setItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const tags = item.tags || [];
+      if (tags.some(x => x.toLowerCase() === t.toLowerCase())) return item;
+      return { ...item, tags: [...tags, t] };
+    }));
+  };
+  const handleRemoveItemTag = (id: string, tag: string) => {
+    setItems(prev => prev.map(item =>
+      item.id === id ? { ...item, tags: (item.tags || []).filter(x => x.toLowerCase() !== tag.toLowerCase()) } : item
+    ));
+  };
+
   // Atualiza os metadados de UM título pelo TMDB (preserva dados pessoais)
   const handleRefreshOne = async (item: Item) => {
     if (!hasTmdbKey) { showToast('Configure a chave do TMDB primeiro.', 'error'); return; }
@@ -1587,6 +1604,9 @@ export default function App() {
                     onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
                     onAddToList={(it) => setAddToListItem(it)}
                     onSetPriority={handleSetPriority}
+                    allTags={allTags}
+                    onAddItemTag={handleAddItemTag}
+                    onRemoveItemTag={handleRemoveItemTag}
                   />
                 ))}
               </div>
