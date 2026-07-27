@@ -274,7 +274,16 @@ export default function App() {
   // Filtros da Lista
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); 
-  const [filterStatus, setFilterStatus] = useState<string[]>([]); // vazio = todos
+  const [filterStatus, setFilterStatus] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('cineflow_filter_status');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }); // vazio = todos
+  useEffect(() => {
+    try { localStorage.setItem('cineflow_filter_status', JSON.stringify(filterStatus)); } catch { /* ignora */ }
+  }, [filterStatus]);
   const [sortBy, setSortBy] = useState<string>(() => {
     try { return localStorage.getItem('cineflow_sort') || 'title-asc'; } catch { return 'title-asc'; }
   });
