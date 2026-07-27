@@ -74,8 +74,9 @@ export default function ItemCard({
 
         {/* Info do Card */}
         <div className="flex-1 min-w-0 space-y-1.5">
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-start justify-between gap-1.5">
+            {/* Esquerda: ano + prioridade */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <span className="text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
               {prio.v > 0 && (
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${prio.badge}`} title={`Prioridade: ${prio.label}`}>
@@ -84,34 +85,22 @@ export default function ItemCard({
               )}
             </div>
 
-            {/* Estado Badge */}
-            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
-              item.status_assistido === 'assistido' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/20' :
-              item.status_assistido === 'em_andamento' ? 'bg-blue-950/80 text-blue-300 border border-blue-500/20' :
-              'bg-slate-950/80 text-slate-400 border border-slate-800'
-            }`}>
-              {item.status_assistido === 'assistido' ? 'Assistido' :
-               item.status_assistido === 'em_andamento' ? 'Em Curso' :
-               'Pendente'}
-            </span>
-          </div>
-
-          {/* Tags do título: botão +TAG + chips */}
-          <div className="relative flex items-center flex-wrap gap-1">
-            <button
-              type="button"
-              onClick={() => setTagOpen((v) => !v)}
-              className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-slate-600 text-slate-400 hover:text-purple-300 hover:border-purple-500/50 transition-colors"
-            >
-              + Tag
-            </button>
-            {itemTags.map((t, tIdx) => (
-              <span key={tIdx} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20">
-                <button type="button" onClick={() => onTagClick(t)} title={`Filtrar por #${t}`} className="hover:text-purple-100">#{t}</button>
-                <button type="button" onClick={() => onRemoveItemTag(item.id, t)} title="Remover tag" className="text-purple-400/60 hover:text-red-300 font-bold leading-none">×</button>
-              </span>
-            ))}
-            {tagOpen && (
+            {/* Meio: botão +TAG + chips (ocupa o espaço até o estado) */}
+            <div className="relative flex items-center flex-wrap gap-1 flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => setTagOpen((v) => !v)}
+                className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-slate-600 text-slate-400 hover:text-purple-300 hover:border-purple-500/50 transition-colors flex-shrink-0"
+              >
+                + Tag
+              </button>
+              {itemTags.map((t, tIdx) => (
+                <span key={tIdx} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20">
+                  <button type="button" onClick={() => onTagClick(t)} title={`Filtrar por #${t}`} className="hover:text-purple-100">#{t}</button>
+                  <button type="button" onClick={() => onRemoveItemTag(item.id, t)} title="Remover tag" className="text-purple-400/60 hover:text-red-300 font-bold leading-none">×</button>
+                </span>
+              ))}
+              {tagOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setTagOpen(false)}></div>
                 <div className="absolute top-full left-0 mt-1 z-50 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2">
@@ -150,6 +139,18 @@ export default function ItemCard({
                 </div>
               </>
             )}
+            </div>
+
+            {/* Direita: Estado Badge */}
+            <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
+              item.status_assistido === 'assistido' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/20' :
+              item.status_assistido === 'em_andamento' ? 'bg-blue-950/80 text-blue-300 border border-blue-500/20' :
+              'bg-slate-950/80 text-slate-400 border border-slate-800'
+            }`}>
+              {item.status_assistido === 'assistido' ? 'Assistido' :
+               item.status_assistido === 'em_andamento' ? 'Em Curso' :
+               'Pendente'}
+            </span>
           </div>
 
           <h3
@@ -197,14 +198,20 @@ export default function ItemCard({
               : 0;
             const total = item.num_episodios ?? 0;
             // Barra de progresso de episódios + contagem à direita
+            const numTemps = item.num_temporadas ?? 0;
             if (total > 0 || epVistos > 0) {
               const pct = total > 0 ? Math.min(100, Math.round((epVistos / total) * 100)) : 0;
               return (
                 <div className="flex items-center gap-2 pt-1">
+                  {numTemps > 0 && (
+                    <span className="text-[10px] font-bold text-indigo-300 whitespace-nowrap flex-shrink-0">
+                      📺 {numTemps} {numTemps === 1 ? 'Temp.' : 'Temps.'}
+                    </span>
+                  )}
                   <div className="flex-1 bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-850">
                     <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
                   </div>
-                  <span className="text-[10px] font-bold text-purple-300 whitespace-nowrap">📺 {epVistos}/{total || '?'} ep.</span>
+                  <span className="text-[10px] font-bold text-purple-300 whitespace-nowrap">{epVistos}/{total || '?'} ep.</span>
                 </div>
               );
             }
