@@ -275,7 +275,12 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); 
   const [filterStatus, setFilterStatus] = useState<string[]>([]); // vazio = todos
-  const [sortBy, setSortBy] = useState('title-asc'); 
+  const [sortBy, setSortBy] = useState<string>(() => {
+    try { return localStorage.getItem('cineflow_sort') || 'title-asc'; } catch { return 'title-asc'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cineflow_sort', sortBy); } catch { /* ignora */ }
+  }, [sortBy]);
 
   // Modal de Adicionar / Editar
   const [isModalOpen, setIsModalOpen] = useState(false);
