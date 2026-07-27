@@ -59,6 +59,7 @@ interface AddEditModalProps {
   handlePickTmdb: (r: TmdbSearchResult) => void;
   addFormTag: (raw: string) => void;
   removeFormTag: (label: string) => void;
+  onOpenEpisodes: (item: Item) => void;
   onClose: () => void;
 }
 
@@ -117,6 +118,7 @@ export default function AddEditModal(props: AddEditModalProps) {
     handlePickTmdb,
     addFormTag,
     removeFormTag,
+    onOpenEpisodes,
     onClose,
   } = props;
 
@@ -436,6 +438,15 @@ export default function AddEditModal(props: AddEditModalProps) {
                         className="block w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none"
                       />
                     </div>
+                    {editingItem && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenEpisodes(editingItem)}
+                        className="col-span-2 flex items-center justify-center gap-1.5 text-[11px] font-bold text-purple-300 bg-purple-950/40 border border-purple-500/30 rounded-xl py-2 hover:bg-purple-950/60 transition-colors"
+                      >
+                        📺 Marcar episódios vistos
+                      </button>
+                    )}
                   </div>
                 )}
 

@@ -1278,20 +1278,20 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            {/* Menu consolidado: Biblioteca */}
+          <div className="flex items-center flex-row-reverse gap-2">
+            {/* Menu consolidado: Biblioteca (hambúrguer, fica à direita do avatar) */}
             <div className="relative" ref={libMenuRef}>
               <button
                 onClick={() => setShowLibMenu((v) => !v)}
                 aria-haspopup="menu"
                 aria-expanded={showLibMenu}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg flex items-center space-x-1.5 transition-all"
+                aria-label="Menu da biblioteca"
+                title="Menu"
+                className="p-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-xl shadow-lg flex items-center justify-center transition-all"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                <span>Biblioteca</span>
-                <span className="text-[9px]">▾</span>
               </button>
 
               {showLibMenu && (
@@ -1332,7 +1332,7 @@ export default function App() {
             </div>
 
             {user && (
-              <div className="relative ml-1 pl-2 border-l border-slate-800" ref={userMenuRef}>
+              <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setShowUserMenu((v) => !v)}
                   aria-haspopup="menu"
@@ -1449,8 +1449,18 @@ export default function App() {
                   placeholder={hasTmdbKey ? 'Pesquisar na biblioteca e na web (TMDB)...' : 'Pesquisar por título, notas, gênero ou tag...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
+                  className="block w-full pl-11 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Limpar pesquisa"
+                    title="Limpar"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-white"
+                  >
+                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-xs">✕</span>
+                  </button>
+                )}
               </div>
 
               {/* Grid Filtros Rápidos */}
@@ -2051,6 +2061,7 @@ export default function App() {
           handlePickTmdb={handlePickTmdb}
           addFormTag={addFormTag}
           removeFormTag={removeFormTag}
+          onOpenEpisodes={(it) => { setIsModalOpen(false); setEpisodeItem(it); }}
           onClose={() => setIsModalOpen(false)}
         />
       )}
