@@ -38,6 +38,8 @@ export default function DetailModal({
 }: DetailModalProps) {
   const episodiosVistos = countWatchedEpisodes(item.episodios_vistos);
   const [refreshing, setRefreshing] = useState(false);
+  const [zoomImg, setZoomImg] = useState<string | null>(null);
+  const [trailerOpen, setTrailerOpen] = useState(false);
   const doRefresh = async () => {
     setRefreshing(true);
     try { await onRefresh(item); } finally { setRefreshing(false); }
@@ -61,12 +63,18 @@ export default function DetailModal({
     !!providers && (providers.flatrate.length > 0 || providers.rent.length > 0 || providers.buy.length > 0);
 
   return (
+    <>
     <div className="fixed inset-0 z-[65] flex items-start justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
       <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-lg w-full shadow-2xl my-8 overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Backdrop / cabeçalho */}
         <div className="relative h-40 bg-slate-950">
           {item.backdrop_url ? (
-            <img src={item.backdrop_url} alt="" className="w-full h-full object-cover opacity-60" />
+            <img
+              src={item.backdrop_url}
+              alt=""
+              onClick={() => setZoomImg(item.backdrop_url || null)}
+              className="w-full h-full object-cover opacity-60 cursor-zoom-in"
+            />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-purple-900/40 to-slate-900"></div>
           )}
@@ -82,7 +90,9 @@ export default function DetailModal({
             <img
               src={item.poster_url || POSTER_FALLBACK}
               alt={item.titulo}
-              className="w-16 h-24 object-cover rounded-lg border border-slate-700 shadow-lg flex-shrink-0"
+              onClick={() => item.poster_url && setZoomImg(item.poster_url)}
+              title="Ampliar imagem"
+              className="w-16 h-24 object-cover rounded-lg border border-slate-700 shadow-lg flex-shrink-0 cursor-zoom-in hover:brightness-110 transition"
               onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
             />
             <div className="min-w-0 pb-1">
@@ -98,6 +108,11 @@ export default function DetailModal({
         <div className="p-5 space-y-4">
           {/* Meta */}
           <div className="flex flex-wrap gap-2 text-[10px]">
+            {item.classificacao && (
+              <span className="px-2 py-1 rounded-lg font-black bg-slate-950 text-amber-300 border border-amber-500/30" title="Classificação indicativa">
+                🔞 {item.classificacao}
+              </span>
+            )}
             {!preview && (
               <span className={`px-2 py-1 rounded-lg font-bold border ${
                 item.status_assistido === 'assistido' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/20' :
@@ -123,6 +138,16 @@ export default function DetailModal({
               </span>
             )}
           </div>
+
+          {/* Trailer (YouTube) */}
+          {item.trailer_key && (
+            <button
+              onClick={() => setTrailerOpen(true)}
+              className="w-full flex items-center justify-center gap-2 text-[12px] font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl py-2.5 transition-colors shadow-lg shadow-red-900/20"
+            >
+              ▶ Assistir trailer
+            </button>
+          )}
 
           {/* Rastrear episódios (séries) */}
           {!preview && isSerial(item.tipo) && (
@@ -298,5 +323,53 @@ export default function DetailModal({
         </div>
       </div>
     </div>
+
+    {/* Lightbox: imagem maximizada */}
+    {zoomImg && (
+      <div
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-black/95 p-4 cursor-zoom-out"
+        onClick={() => setZoomImg(null)}
+      >
+        <button
+          onClick={() => setZoomImg(null)}
+          aria-label="Fechar imagem"
+          className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-lg leading-none"
+        >
+          ✕
+        </button>
+        <img
+          src={zoomImg}
+          alt={item.titulo}
+          className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    )}
+
+    {/* Trailer do YouTube */}
+    {trailerOpen && item.trailer_key && (
+      <div
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-black/95 p-4"
+        onClick={() => setTrailerOpen(false)}
+      >
+        <button
+          onClick={() => setTrailerOpen(false)}
+          aria-label="Fechar trailer"
+          className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-lg leading-none"
+        >
+          ✕
+        </button>
+        <div className="w-full max-w-3xl aspect-video" onClick={(e) => e.stopPropagation()}>
+          <iframe
+            className="w-full h-full rounded-xl shadow-2xl"
+            src={`https://www.youtube.com/embed/${item.trailer_key}?autoplay=1&rel=0`}
+            title={`Trailer — ${item.titulo}`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          ></iframe>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

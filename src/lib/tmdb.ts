@@ -135,7 +135,20 @@ export async function searchTmdb(query: string): Promise<TmdbSearchResult[]> {
 const BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
 const PROFILE_BASE = 'https://image.tmdb.org/t/p/w185';
 
-/** Busca detalhes ricos: sinopse, duração, nº de temporadas/episódios, elenco e backdrop. */
+// Escolhe o melhor trailer do YouTube da lista de vídeos do TMDB.
+function pickTrailerKey(videos?: any[]): string {
+  const yt = (videos || []).filter((v) => v && v.site === 'YouTube' && v.key);
+  if (yt.length === 0) return '';
+  const ofType = (t: string) => yt.filter((v) => v.type === t);
+  const preferOfficial = (arr: any[]) => arr.find((v) => v.official) || arr[0];
+  const chosen =
+    preferOfficial(ofType('Trailer')) ||
+    preferOfficial(ofType('Teaser')) ||
+    yt[0];
+  return chosen?.key || '';
+}
+
+/** Busca detalhes ricos: sinopse, duração, temporadas/episódios, elenco, backdrop, trailer e classificação. */
 export async function fetchTmdbDetails(
   params: { id: number; mediaType: 'movie' | 'tv' | string }
 ): Promise<TmdbDetails | null> {
@@ -143,8 +156,9 @@ export async function fetchTmdbDetails(
   const key = getTmdbKey();
   if (!key || !id) return null;
   const type = mediaType === 'tv' ? 'tv' : 'movie';
+  const append = type === 'tv' ? 'credits,videos,content_ratings' : 'credits,videos,release_dates';
   const res = await fetch(
-    `${API_BASE}/${type}/${id}?api_key=${key}&language=${LANG}&append_to_response=credits`
+    `${API_BASE}/${type}/${id}?api_key=${key}&language=${LANG}&append_to_response=${append}`
   );
   if (!res.ok) throw new Error('details');
   const d = await res.json();
@@ -160,6 +174,31 @@ export async function fetchTmdbDetails(
   else if (Array.isArray(d.episode_run_time) && d.episode_run_time.length)
     runtime = Number(d.episode_run_time[0] || 0);
 
+  // Trailer: tenta no idioma padrão; se não houver, busca vídeos em inglês.
+  let trailer_key = pickTrailerKey(d.videos?.results);
+  if (!trailer_key) {
+    try {
+      const vr = await fetch(`${API_BASE}/${type}/${id}/videos?api_key=${key}&language=en-US`);
+      if (vr.ok) { const vd = await vr.json(); trailer_key = pickTrailerKey(vd.results); }
+    } catch { /* sem trailer */ }
+  }
+
+  // Classificação indicativa: prioriza Brasil, com recuo para os EUA.
+  let classificacao = '';
+  if (type === 'movie') {
+    const findCert = (iso: string) => {
+      const entry = (d.release_dates?.results || []).find((x: any) => x.iso_3166_1 === iso);
+      return entry ? ((entry.release_dates || []).map((r: any) => r.certification).find((c: string) => c && c.trim()) || '') : '';
+    };
+    classificacao = findCert('BR') || findCert('US');
+  } else {
+    const findRating = (iso: string) => {
+      const entry = (d.content_ratings?.results || []).find((x: any) => x.iso_3166_1 === iso);
+      return (entry?.rating || '').trim();
+    };
+    classificacao = findRating('BR') || findRating('US');
+  }
+
   return {
     overview: d.overview || '',
     runtime,
@@ -167,6 +206,8 @@ export async function fetchTmdbDetails(
     num_episodios: type === 'tv' ? Number(d.number_of_episodes || 0) : 0,
     backdrop_url: d.backdrop_path ? `${BACKDROP_BASE}${d.backdrop_path}` : '',
     elenco: cast,
+    trailer_key,
+    classificacao,
   };
 }
 

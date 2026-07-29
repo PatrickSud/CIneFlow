@@ -25,6 +25,7 @@ import ManageMembersModal from './components/ManageMembersModal';
 import AddToListModal from './components/AddToListModal';
 import PublicListViewer from './components/PublicListViewer';
 import EpisodeTrackerModal from './components/EpisodeTrackerModal';
+import BulkActionBar from './components/BulkActionBar';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -269,7 +270,78 @@ export default function App() {
     else showToast('O título já estava na(s) lista(s) escolhida(s).', 'info');
   };
 
+  // --- Ações em lote (multi-seleção) ---
+  const bulkSetPriority = (value: number) => {
+    if (selectedIds.length === 0) return;
+    setItems((prev) => prev.map((i) => (selectedIds.includes(i.id) ? { ...i, prioridade: value } : i)));
+    showToast(`Prioridade aplicada a ${selectedIds.length} título(s).`);
+  };
+  const bulkSetWatched = (watched: boolean) => {
+    if (selectedIds.length === 0) return;
+    setItems((prev) => prev.map((i) => (selectedIds.includes(i.id)
+      ? { ...i, status_assistido: watched ? 'assistido' : 'nao_assistido', progresso_porcentagem: watched ? 100 : 0 }
+      : i)));
+    showToast(`${selectedIds.length} título(s) marcado(s) como ${watched ? 'assistido' : 'não assistido'}.`);
+  };
+  const bulkAddTags = (tags: string[]) => {
+    const clean = tags.map((t) => t.trim()).filter(Boolean);
+    if (selectedIds.length === 0 || clean.length === 0) return;
+    setItems((prev) => prev.map((i) => {
+      if (!selectedIds.includes(i.id)) return i;
+      const merged = [...(i.tags || [])];
+      clean.forEach((t) => { if (!merged.some((x) => x.toLowerCase() === t.toLowerCase())) merged.push(t); });
+      return { ...i, tags: merged };
+    }));
+    showToast(`${clean.length} tag(s) adicionada(s) a ${selectedIds.length} título(s).`);
+  };
+  // Adiciona os títulos selecionados às listas escolhidas
+  const bulkAddToLists = async (listIds: string[]) => {
+    const sel = items.filter((i) => selectedIds.includes(i.id));
+    let total = 0;
+    for (const id of listIds) {
+      try {
+        const current = await loadListItems(id);
+        const merged = [...current];
+        for (const item of sel) {
+          const exists = merged.some((x) =>
+            (item.tmdb_id && x.tmdb_id === item.tmdb_id) ||
+            (x.titulo.trim().toLowerCase() === item.titulo.trim().toLowerCase() && Number(x.ano) === Number(item.ano))
+          );
+          if (!exists) {
+            merged.unshift({ ...normalizeItem(item), id: genId('custom'), data_adicao: new Date().toISOString() });
+            total++;
+          }
+        }
+        await saveListItems(id, merged);
+      } catch (e) {
+        console.error('Falha ao adicionar seleção à lista.', e);
+      }
+    }
+    setBulkListOpen(false);
+    if (listIds.includes(activeSource)) setReloadTick((t) => t + 1);
+    if (total > 0) showToast(`${total} adição(ões) feita(s) à(s) lista(s).`);
+    else showToast('Os títulos já estavam na(s) lista(s).', 'info');
+  };
+  // Cria uma nova lista já com os títulos selecionados
+  const handleCreateListWithSelection = async (nome: string, members: string[]) => {
+    if (!user?.email) return;
+    try {
+      const id = await createSharedList(user.uid, user.email, nome, members);
+      const sel = items.filter((i) => selectedIds.includes(i.id))
+        .map((i) => ({ ...normalizeItem(i), id: genId('custom'), data_adicao: new Date().toISOString() }));
+      if (sel.length) await saveListItems(id, sel);
+      setBulkCreateList(false);
+      await refreshLists();
+      setActiveSource(id);
+      showToast(`Lista criada com ${sel.length} título(s)!`);
+    } catch (e) {
+      showToast('Não foi possível criar a lista.', 'error');
+    }
+  };
+
   const [activeTab, setActiveTab] = useState('lista');
+  // Sai do modo de seleção ao trocar de aba
+  useEffect(() => { if (activeTab !== 'lista') { setSelectionMode(false); setSelectedIds([]); } }, [activeTab]);
 
   // Filtros da Lista
   const [searchQuery, setSearchQuery] = useState('');
@@ -479,6 +551,16 @@ export default function App() {
   const [providers, setProviders] = useState<WatchProviders | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
   const closeDetail = useCallback(() => { setDetailItem(null); setDetailPreview(null); }, []);
+
+  // Multi-seleção (ações em lote)
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkListOpen, setBulkListOpen] = useState(false);   // modal "adicionar seleção a listas"
+  const [bulkCreateList, setBulkCreateList] = useState(false); // criar nova lista a partir da seleção
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const clearSelection = () => setSelectedIds([]);
+  const exitSelection = () => { setSelectionMode(false); setSelectedIds([]); };
 
   useEffect(() => {
     if (!detailItem || !hasTmdbKey || !detailItem.tmdb_id) { setProviders(null); return; }
@@ -1012,7 +1094,7 @@ export default function App() {
         if (d) {
           setDetailItem((cur) =>
             cur && cur.id === base.id
-              ? { ...cur, overview: d.overview || cur.overview, runtime: d.runtime, num_temporadas: d.num_temporadas, num_episodios: d.num_episodios, elenco: d.elenco, backdrop_url: d.backdrop_url }
+              ? { ...cur, overview: d.overview || cur.overview, runtime: d.runtime, num_temporadas: d.num_temporadas, num_episodios: d.num_episodios, elenco: d.elenco, backdrop_url: d.backdrop_url, trailer_key: d.trailer_key, classificacao: d.classificacao }
               : cur
           );
         }
@@ -1023,7 +1105,7 @@ export default function App() {
   // Adiciona direto à biblioteca (1 toque), enriquecendo em segundo plano
   const handleQuickAddFromApi = async (r: TmdbSearchResult) => {
     if (isInLibrary(r)) { showToast('Este título já está na biblioteca.', 'info'); return; }
-    let extra: { overview: string; runtime: number; num_temporadas: number; num_episodios: number; elenco: CastMember[]; backdrop_url: string } = { overview: r.overview || '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '' };
+    let extra: { overview: string; runtime: number; num_temporadas: number; num_episodios: number; elenco: CastMember[]; backdrop_url: string; trailer_key: string; classificacao: string } = { overview: r.overview || '', runtime: 0, num_temporadas: 0, num_episodios: 0, elenco: [], backdrop_url: '', trailer_key: '', classificacao: '' };
     try {
       if (r.tmdb_id && r.media_type) {
         const d = await fetchTmdbDetails({ id: r.tmdb_id, mediaType: r.media_type });
@@ -1052,6 +1134,8 @@ export default function App() {
       num_episodios: extra.num_episodios,
       elenco: extra.elenco,
       backdrop_url: extra.backdrop_url,
+      trailer_key: extra.trailer_key,
+      classificacao: extra.classificacao,
       tmdb_id: r.tmdb_id || null,
       tmdb_media_type: r.media_type || '',
     };
@@ -1194,6 +1278,8 @@ export default function App() {
             num_episodios: d.num_episodios || item.num_episodios || 0,
             elenco: d.elenco && d.elenco.length ? d.elenco : item.elenco,
             backdrop_url: d.backdrop_url || item.backdrop_url || '',
+            trailer_key: d.trailer_key || item.trailer_key || '',
+            classificacao: d.classificacao || item.classificacao || '',
             tmdb_id: id,
             tmdb_media_type: media || item.tmdb_media_type,
           };
@@ -1329,6 +1415,7 @@ export default function App() {
         smart: matchSmart,
         prefs,
         exclude: matchHistory,
+        priorityAware: true,
       });
 
       setMatchedItems(selected);
@@ -1661,23 +1748,37 @@ export default function App() {
             </div>
 
             {/* Cabeçalho de Resultados */}
-            <div className="flex items-center justify-between px-2 text-xs">
+            <div className="flex items-center justify-between gap-2 px-2 text-xs flex-wrap">
               <span className="font-semibold text-slate-400">
                 Exibindo <strong className="text-white">{processedItems.length}</strong> de {items.length} registrados
               </span>
-              {(searchQuery || filterType !== 'all' || filterStatus.length > 0 || filterTags.length > 0) && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFilterType('all');
-                    setFilterStatus([]);
-                    setFilterTags([]);
-                  }}
-                  className="text-purple-400 hover:text-purple-300 font-bold underline"
-                >
-                  Limpar Filtros
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {(searchQuery || filterType !== 'all' || filterStatus.length > 0 || filterTags.length > 0) && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFilterType('all');
+                      setFilterStatus([]);
+                      setFilterTags([]);
+                    }}
+                    className="text-purple-400 hover:text-purple-300 font-bold underline"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+                {processedItems.length > 0 && (
+                  <button
+                    onClick={() => { if (selectionMode) { exitSelection(); } else { setSelectionMode(true); } }}
+                    className={`font-bold px-2.5 py-1 rounded-lg border transition-colors ${
+                      selectionMode
+                        ? 'bg-purple-600 border-purple-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-purple-500/40'
+                    }`}
+                  >
+                    {selectionMode ? '✕ Cancelar seleção' : '☑ Selecionar'}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Lista Grid */}
@@ -1698,6 +1799,9 @@ export default function App() {
                     allTags={allTags}
                     onAddItemTag={handleAddItemTag}
                     onRemoveItemTag={handleRemoveItemTag}
+                    selectionMode={selectionMode}
+                    selected={selectedIds.includes(item.id)}
+                    onToggleSelect={toggleSelected}
                   />
                 ))}
               </div>
@@ -2345,6 +2449,40 @@ export default function App() {
         onConfirm={(ids) => { if (addToListItem) handleAddToLists(addToListItem, ids); }}
         onCreateNew={() => { setAddToListItem(null); setShowCreateList(true); }}
       />
+
+      {/* Ações em lote: adicionar seleção a listas */}
+      <AddToListModal
+        open={bulkListOpen}
+        itemTitulo={`${selectedIds.length} título(s) selecionado(s)`}
+        lists={sharedLists}
+        onClose={() => setBulkListOpen(false)}
+        onConfirm={(ids) => { bulkAddToLists(ids); }}
+        onCreateNew={() => { setBulkListOpen(false); setBulkCreateList(true); }}
+      />
+
+      {/* Ações em lote: criar nova lista com a seleção */}
+      <CreateListModal
+        open={bulkCreateList}
+        onClose={() => setBulkCreateList(false)}
+        onCreate={handleCreateListWithSelection}
+      />
+
+      {/* Barra de ações em lote */}
+      {selectionMode && activeTab === 'lista' && (
+        <BulkActionBar
+          count={selectedIds.length}
+          totalVisible={processedItems.length}
+          allTags={allTags}
+          onSetPriority={bulkSetPriority}
+          onSetWatched={bulkSetWatched}
+          onAddTags={bulkAddTags}
+          onAddToList={() => setBulkListOpen(true)}
+          onCreateList={() => setBulkCreateList(true)}
+          onSelectAll={() => setSelectedIds(processedItems.map((i) => i.id))}
+          onClear={clearSelection}
+          onExit={exitSelection}
+        />
+      )}
 
       {/* ==================== VISUALIZADOR DE LISTA PÚBLICA (link) ==================== */}
       {publicListId && (

@@ -55,23 +55,70 @@ export interface PickOptions {
   smart?: boolean;
   prefs?: Preferences | null;
   exclude?: string[];
+  // Garante representação por nível de prioridade (alta→média→baixa), de forma
+  // inteligente e conforme a quantidade pedida.
+  priorityAware?: boolean;
+}
+
+// Ordena um conjunto: por pontuação de preferências (com desempate aleatório)
+// quando smart+prefs; caso contrário, embaralhamento uniforme.
+function orderCandidates(arr: Item[], smart: boolean, prefs: Preferences | null): Item[] {
+  if (smart && prefs) {
+    return arr
+      .map((i) => ({ i, s: scoreItem(i, prefs) + Math.random() * 1.5 }))
+      .sort((a, b) => b.s - a.s)
+      .map((x) => x.i);
+  }
+  return fisherYates(arr);
 }
 
 // Seleciona `count` itens do pool. Se smart, ordena por pontuação (com desempate
 // aleatório); senão, sorteio uniforme. `exclude` = ids a evitar (histórico).
+// Se priorityAware, garante ao menos 1 título de cada nível de prioridade
+// presente (do mais alto ao mais baixo) antes de preencher as vagas restantes.
 export function pickMatches(pool: Item[], options: PickOptions = {}): Item[] {
-  const { count = 3, smart = true, prefs = null, exclude = [] } = options;
+  const { count = 3, smart = true, prefs = null, exclude = [], priorityAware = false } = options;
   const excludeSet = new Set(exclude);
   let candidates = pool.filter((i) => !excludeSet.has(i.id));
   if (candidates.length === 0) candidates = [...pool]; // histórico esgotado: recomeça
 
-  if (smart && prefs) {
-    const jittered = candidates
-      .map((i) => ({ i, s: scoreItem(i, prefs) + Math.random() * 1.5 }))
-      .sort((a, b) => b.s - a.s);
-    return jittered.slice(0, Math.min(count, jittered.length)).map((x) => x.i);
+  if (!priorityAware) {
+    return orderCandidates(candidates, smart, prefs).slice(0, Math.min(count, candidates.length));
   }
-  return fisherYates(candidates).slice(0, Math.min(count, candidates.length));
+
+  // Modo consciente de prioridade: reserva 1 vaga para cada nível presente,
+  // começando pelo mais alto (3=alta, 2=média, 1=baixa), respeitando `count`.
+  const chosen: Item[] = [];
+  const chosenIds = new Set<string>();
+  for (const tier of [3, 2, 1]) {
+    if (chosen.length >= count) break;
+    const tierItems = orderCandidates(
+      candidates.filter((i) => (i.prioridade || 0) === tier && !chosenIds.has(i.id)),
+      smart,
+      prefs
+    );
+    if (tierItems.length > 0) {
+      chosen.push(tierItems[0]);
+      chosenIds.add(tierItems[0].id);
+    }
+  }
+  // Preenche as vagas restantes com o melhor do restante (inclui sem prioridade).
+  if (chosen.length < count) {
+    const rest = orderCandidates(
+      candidates.filter((i) => !chosenIds.has(i.id)),
+      smart,
+      prefs
+    );
+    for (const it of rest) {
+      if (chosen.length >= count) break;
+      chosen.push(it);
+      chosenIds.add(it.id);
+    }
+  }
+  // Exibe do mais prioritário para o menos prioritário.
+  return chosen
+    .sort((a, b) => (b.prioridade || 0) - (a.prioridade || 0))
+    .slice(0, Math.min(count, chosen.length));
 }
 
 // Tempo total assistido (minutos): filmes/docs assistidos usam runtime;

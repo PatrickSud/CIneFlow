@@ -50,6 +50,10 @@ export interface Item {
   episodios_vistos?: Record<string, number[]>;
   // Prioridade na watchlist: 0 = nenhuma, 1 = média, 2 = alta
   prioridade?: number;
+  // Chave do trailer no YouTube (ex.: dQw4w9WgXcQ)
+  trailer_key?: string;
+  // Classificação indicativa (ex.: 'L', '10', '12', '14', '16', '18')
+  classificacao?: string;
 }
 
 /** Uma temporada de série (estrutura vinda do TMDB). */
@@ -112,6 +116,8 @@ export interface TmdbDetails {
   num_episodios: number;
   backdrop_url: string;
   elenco: CastMember[];
+  trailer_key: string;
+  classificacao: string;
 }
 
 /** Um provedor de streaming/aluguel/compra. */

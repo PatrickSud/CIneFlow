@@ -69,6 +69,41 @@ describe('pickMatches', () => {
     const res = pickMatches(pool, { count: 1, smart: true, prefs });
     expect(['1', '3']).toContain(res[0].id);
   });
+
+  describe('priorityAware', () => {
+    const prioPool = [
+      { id: 'a1', generos: [], tags: [], prioridade: 3 },
+      { id: 'a2', generos: [], tags: [], prioridade: 3 },
+      { id: 'm1', generos: [], tags: [], prioridade: 2 },
+      { id: 'b1', generos: [], tags: [], prioridade: 1 },
+      { id: 'n1', generos: [], tags: [], prioridade: 0 },
+      { id: 'n2', generos: [], tags: [], prioridade: 0 },
+      { id: 'n3', generos: [], tags: [], prioridade: 0 },
+    ] as any;
+
+    it('garante ao menos 1 alta e 1 média quando presentes (count=5)', () => {
+      const res = pickMatches(prioPool, { count: 5, smart: false, priorityAware: true });
+      expect(res).toHaveLength(5);
+      const prios = res.map((x: any) => x.prioridade);
+      expect(prios).toContain(3);
+      expect(prios).toContain(2);
+    });
+
+    it('sem alta, garante média e baixa', () => {
+      const noHigh = prioPool.filter((x: any) => x.prioridade !== 3);
+      const res = pickMatches(noHigh, { count: 5, smart: false, priorityAware: true });
+      const prios = res.map((x: any) => x.prioridade);
+      expect(prios).toContain(2);
+      expect(prios).toContain(1);
+    });
+
+    it('resultado ordenado da maior para a menor prioridade', () => {
+      const res = pickMatches(prioPool, { count: 4, smart: false, priorityAware: true });
+      const prios = res.map((x: any) => x.prioridade || 0);
+      const sorted = [...prios].sort((a, b) => b - a);
+      expect(prios).toEqual(sorted);
+    });
+  });
 });
 
 describe('totalWatchMinutes / formatMinutes', () => {

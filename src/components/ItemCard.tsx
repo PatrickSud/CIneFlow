@@ -17,6 +17,10 @@ interface ItemCardProps {
   allTags: string[];
   onAddItemTag: (id: string, tag: string) => void;
   onRemoveItemTag: (id: string, tag: string) => void;
+  // Multi-seleção
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export default function ItemCard({
@@ -32,6 +36,9 @@ export default function ItemCard({
   allTags,
   onAddItemTag,
   onRemoveItemTag,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }: ItemCardProps) {
   const prio = priorityInfo(item.prioridade);
   const [prioOpen, setPrioOpen] = useState(false);
@@ -46,7 +53,29 @@ export default function ItemCard({
     setTagDraft('');
   };
   return (
-    <div className="bg-slate-900/80 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group">
+    <div
+      className={`relative bg-slate-900/80 border rounded-2xl overflow-hidden transition-all duration-300 shadow-lg flex flex-col justify-between group ${
+        selected ? 'border-purple-500 ring-2 ring-purple-500/60' : 'border-slate-800/80 hover:border-purple-500/40'
+      }`}
+    >
+      {/* Camada de seleção: intercepta cliques no card inteiro no modo multi-seleção */}
+      {selectionMode && (
+        <div
+          className="absolute inset-0 z-10 cursor-pointer"
+          onClick={() => onToggleSelect?.(item.id)}
+          title={selected ? 'Remover da seleção' : 'Selecionar'}
+        ></div>
+      )}
+      {/* Indicador de seleção */}
+      {selectionMode && (
+        <div className="absolute top-2.5 right-2.5 z-20 pointer-events-none">
+          <span className={`w-7 h-7 flex items-center justify-center rounded-full border-2 text-sm font-black shadow-lg ${
+            selected ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-950/90 border-slate-500 text-transparent'
+          }`}>
+            ✓
+          </span>
+        </div>
+      )}
 
       {/* Header com Capa */}
       <div className="flex items-start p-4 space-x-4">
@@ -55,7 +84,7 @@ export default function ItemCard({
           type="button"
           onClick={() => onOpenDetail(item)}
           title="Ver detalhes"
-          className="w-20 h-28 flex-shrink-0 bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-800 relative cursor-pointer"
+          className="w-24 h-36 sm:w-20 sm:h-28 flex-shrink-0 bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-800 relative cursor-pointer"
         >
           <img
             src={item.poster_url || POSTER_FALLBACK}
@@ -67,7 +96,7 @@ export default function ItemCard({
             }}
           />
           {/* Selo Tipo */}
-          <div className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-200" title={typeLabel(item.tipo)}>
+          <div className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[11px] sm:text-[10px] font-bold text-slate-200" title={typeLabel(item.tipo)}>
             {typeEmoji(item.tipo)}
           </div>
         </button>
@@ -77,9 +106,9 @@ export default function ItemCard({
           <div className="flex items-start justify-between gap-1.5">
             {/* Esquerda: ano + prioridade */}
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
+              <span className="text-xs sm:text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
               {prio.v > 0 && (
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${prio.badge}`} title={`Prioridade: ${prio.label}`}>
+                <span className={`text-[10px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded border ${prio.badge}`} title={`Prioridade: ${prio.label}`}>
                   {prio.dot} {prio.label}
                 </span>
               )}
@@ -142,7 +171,7 @@ export default function ItemCard({
             </div>
 
             {/* Direita: Estado Badge */}
-            <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide uppercase ${
+            <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] sm:text-[9px] font-black tracking-wide uppercase ${
               item.status_assistido === 'assistido' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/20' :
               item.status_assistido === 'em_andamento' ? 'bg-blue-950/80 text-blue-300 border border-blue-500/20' :
               'bg-slate-950/80 text-slate-400 border border-slate-800'
@@ -155,7 +184,7 @@ export default function ItemCard({
 
           <h3
             onClick={() => onOpenDetail(item)}
-            className="font-bold text-sm text-white leading-tight truncate group-hover:text-purple-300 transition-colors cursor-pointer"
+            className="font-bold text-base sm:text-sm text-white leading-tight truncate group-hover:text-purple-300 transition-colors cursor-pointer"
             title={item.titulo}
           >
             {item.titulo}
@@ -165,13 +194,13 @@ export default function ItemCard({
           {Array.isArray(item.generos) && item.generos.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {item.generos.slice(0, 3).map((gen, gIdx) => (
-                <span key={gIdx} className="bg-slate-950 text-[9px] px-1.5 py-0.5 rounded text-slate-400">
+                <span key={gIdx} className="bg-slate-950 text-[11px] sm:text-[9px] px-1.5 py-0.5 rounded text-slate-400">
                   {gen}
                 </span>
               ))}
             </div>
           ) : (
-            <span className="text-[10px] text-slate-600 italic">Sem gêneros</span>
+            <span className="text-xs sm:text-[10px] text-slate-600 italic">Sem gêneros</span>
           )}
 
           {/* Classificação (estrelas) */}
@@ -204,14 +233,14 @@ export default function ItemCard({
               return (
                 <div className="flex items-center gap-2 pt-1">
                   {numTemps > 0 && (
-                    <span className="text-[10px] font-bold text-indigo-300 whitespace-nowrap flex-shrink-0">
+                    <span className="text-[11px] sm:text-[10px] font-bold text-indigo-300 whitespace-nowrap flex-shrink-0">
                       📺 {numTemps} {numTemps === 1 ? 'Temp.' : 'Temps.'}
                     </span>
                   )}
                   <div className="flex-1 bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-850">
                     <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
                   </div>
-                  <span className="text-[10px] font-bold text-purple-300 whitespace-nowrap">{epVistos}/{total || '?'} ep.</span>
+                  <span className="text-[11px] sm:text-[10px] font-bold text-purple-300 whitespace-nowrap">{epVistos}/{total || '?'} ep.</span>
                 </div>
               );
             }
