@@ -24,6 +24,7 @@ interface DetailModalProps {
   onAddItemTag: (id: string, tag: string) => void;
   onRemoveItemTag: (id: string, tag: string) => void;
   onDelete: (id: string, titulo: string) => void;
+  onShare: (item: Item) => void;
   allTags: string[];
   onRefresh: (item: Item) => Promise<void>;
   // Modo pré-visualização: título vindo do TMDB, ainda não na biblioteca.
@@ -46,6 +47,7 @@ export default function DetailModal({
   onAddItemTag,
   onRemoveItemTag,
   onDelete,
+  onShare,
   allTags,
   onRefresh,
   preview = false,
@@ -179,13 +181,23 @@ export default function DetailModal({
             ></div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
-          <button
-            onClick={onClose}
-            aria-label="Fechar"
-            className="absolute top-3 right-3 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg"
-          >
-            ✕
-          </button>
+          <div className="absolute top-3 right-3 flex items-center gap-2">
+            <button
+              onClick={() => onShare(item)}
+              aria-label="Compartilhar"
+              title="Compartilhar este título"
+              className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg"
+            >
+              🔗
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Fechar"
+              className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg"
+            >
+              ✕
+            </button>
+          </div>
           <div className="absolute bottom-3 left-4 right-4 flex items-end gap-3">
             <img
               src={item.poster_url || POSTER_FALLBACK}

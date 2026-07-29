@@ -22,6 +22,7 @@
     "src/vite-env.d.ts",
     "src/lib/library.ts",
     "src/lib/tmdb.ts",
+    "src/lib/share.ts",
     "src/lib/contentTypes.ts",
     "src/components/StarRating.tsx",
     "src/components/Toast.tsx",

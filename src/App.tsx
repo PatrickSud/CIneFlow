@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders, fetchTmdbRecommendations, fetchTmdbTrending } from './lib/tmdb';
+import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders, fetchTmdbRecommendations, fetchTmdbTrending, fetchTmdbAsResult } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch, countWatchedEpisodes } from './lib/library';
 import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK, priorityInfo, classificacaoInfo } from './lib/contentTypes';
 import StarRating from './components/StarRating';
@@ -28,6 +28,7 @@ import EpisodeTrackerModal from './components/EpisodeTrackerModal';
 import BulkActionBar from './components/BulkActionBar';
 import CompactCard from './components/CompactCard';
 import RateOnWatchModal from './components/RateOnWatchModal';
+import { shareContent } from './lib/share';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -244,6 +245,46 @@ export default function App() {
       showToast('Lista copiada para a sua conta!');
     } catch (e) {
       showToast('Não foi possível copiar a lista.', 'error');
+    }
+  };
+
+  // --- Compartilhamento ---
+  const baseUrl = () => `${window.location.origin}${window.location.pathname}`;
+
+  // Compartilha um título (deep link abre a pré-visualização no app)
+  const handleShareItem = async (item: Item) => {
+    const media = item.tmdb_media_type || (isSerial(item.tipo) ? 'tv' : 'movie');
+    const url = item.tmdb_id ? `${baseUrl()}?t=${media}-${item.tmdb_id}` : baseUrl();
+    const text = `Recomendo "${item.titulo}"${item.ano ? ` (${item.ano})` : ''} — veja no CineFlow`;
+    const r = await shareContent({ title: item.titulo, text, url });
+    if (r === 'copied') showToast('Link copiado para a área de transferência!');
+    else if (r === 'failed') showToast('Não foi possível compartilhar.', 'error');
+  };
+
+  // Compartilha uma lista (torna pública se preciso — com confirmação)
+  const [shareListPending, setShareListPending] = useState<SharedList | null>(null);
+  const doShareList = async (l: SharedList) => {
+    const url = `${baseUrl()}?list=${l.id}`;
+    const text = `Confira a lista "${l.nome}" no CineFlow`;
+    const r = await shareContent({ title: l.nome, text, url });
+    if (r === 'copied') showToast('Link da lista copiado!');
+    else if (r === 'failed') showToast('Não foi possível compartilhar.', 'error');
+  };
+  const handleShareList = async (l: SharedList) => {
+    if (!l.publico) { setShareListPending(l); return; }
+    await doShareList(l);
+  };
+  const confirmShareList = async () => {
+    const l = shareListPending;
+    setShareListPending(null);
+    if (!l) return;
+    try {
+      await setListPublic(l.id, true);
+      await refreshLists();
+      showToast('Lista tornada pública (somente leitura) para compartilhar.');
+      await doShareList(l);
+    } catch {
+      showToast('Não foi possível tornar a lista pública.', 'error');
     }
   };
 
@@ -1176,6 +1217,33 @@ export default function App() {
     } catch { /* mantém os dados básicos */ }
   };
 
+  // Deep link de título compartilhado: ?t=movie-123 / tv-456 abre a pré-visualização.
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current || !hasTmdbKey) return;
+    let raw: string | null = null;
+    try { raw = new URLSearchParams(window.location.search).get('t'); } catch { raw = null; }
+    if (!raw) return;
+    const m = /^(movie|tv)-(\d+)$/.exec(raw.trim());
+    if (!m) return;
+    deepLinkHandledRef.current = true;
+    const media = m[1] as 'movie' | 'tv';
+    const id = Number(m[2]);
+    (async () => {
+      try {
+        const r = await fetchTmdbAsResult(id, media);
+        if (r) await handlePreviewFromApi(r);
+      } catch { /* ignora deep link inválido */ }
+      finally {
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('t');
+          window.history.replaceState({}, '', u.toString());
+        } catch { /* ignora */ }
+      }
+    })();
+  }, [hasTmdbKey]);
+
   // Adiciona direto à biblioteca (1 toque), enriquecendo em segundo plano
   const handleQuickAddFromApi = async (r: TmdbSearchResult) => {
     if (isInLibrary(r)) { showToast('Este título já está na biblioteca.', 'info'); return; }
@@ -1701,8 +1769,16 @@ export default function App() {
                 </button>
               )}
               {activeList && (
+                <button
+                  onClick={() => handleShareList(activeList)}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-colors"
+                >
+                  🔗 Compartilhar
+                </button>
+              )}
+              {activeList && (
                 <span className="text-[10px] text-purple-400 font-semibold">
-                  {activeList.memberEmails.length > 1 ? 'lista compartilhada' : 'lista pessoal'}
+                  {activeList.publico ? 'link público ativo' : (activeList.memberEmails.length > 1 ? 'lista compartilhada' : 'lista pessoal')}
                 </span>
               )}
             </div>
@@ -2530,6 +2606,21 @@ export default function App() {
         </span>
       </ConfirmDialog>
 
+      {/* ==================== TORNAR LISTA PÚBLICA PARA COMPARTILHAR ==================== */}
+      <ConfirmDialog
+        open={!!shareListPending}
+        icon="🔗"
+        title="Compartilhar esta lista?"
+        confirmLabel="Tornar pública e compartilhar"
+        tone="primary"
+        onConfirm={confirmShareList}
+        onClose={() => setShareListPending(null)}
+      >
+        <span className="block">
+          Para compartilhar por link, a lista <strong className="text-slate-200">"{shareListPending?.nome}"</strong> ficará <strong className="text-slate-200">pública (somente leitura)</strong> — qualquer pessoa com o link poderá visualizá-la. Só quem você convidar por e-mail poderá editar.
+        </span>
+      </ConfirmDialog>
+
       {/* ==================== PROGRESSO: ATUALIZAR TMDB ==================== */}
       {syncState.running && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -2589,6 +2680,7 @@ export default function App() {
           onAddItemTag={handleAddItemTag}
           onRemoveItemTag={handleRemoveItemTag}
           onDelete={handleDeleteItem}
+          onShare={handleShareItem}
           allTags={allTags}
           onRefresh={handleRefreshOne}
         />
@@ -2657,6 +2749,7 @@ export default function App() {
         onTogglePublic={handleTogglePublic}
         onDeleteList={handleDeleteList}
         onLeaveList={handleLeaveList}
+        onShare={activeList ? () => handleShareList(activeList) : undefined}
       />
       <AddToListModal
         open={!!addToListItem}

@@ -12,6 +12,7 @@ interface ManageMembersModalProps {
   onTogglePublic: (publico: boolean) => void;
   onDeleteList: () => void;
   onLeaveList: () => void;
+  onShare?: () => void;
 }
 
 export default function ManageMembersModal({
@@ -24,6 +25,7 @@ export default function ManageMembersModal({
   onTogglePublic,
   onDeleteList,
   onLeaveList,
+  onShare,
 }: ManageMembersModalProps) {
   const [novo, setNovo] = useState('');
   const [copied, setCopied] = useState(false);
@@ -55,37 +57,48 @@ export default function ManageMembersModal({
       <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-sm w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg border border-slate-800">✕</button>
         <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">👥 {list.nome}</h3>
-        <p className="text-xs text-slate-400 mb-4">Membros com acesso a esta lista.</p>
+        <p className="text-xs text-slate-400 mb-4">Defina quem visualiza e quem edita esta lista.</p>
 
-        {/* Lista pública (link de leitura) */}
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 mb-4">
-          <div className="flex items-center justify-between">
+        {/* Acesso de VISUALIZAÇÃO (link público, somente leitura) */}
+        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 mb-3">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-slate-200">🔗 Lista pública</p>
-              <p className="text-[10px] text-slate-500">Qualquer pessoa com o link vê (só leitura) e pode copiar.</p>
+              <p className="text-xs font-bold text-slate-200">👁️ Acesso de visualização</p>
+              <p className="text-[10px] text-slate-500">Link público — qualquer pessoa com ele vê a lista (somente leitura), sem precisar de login.</p>
             </div>
             {isOwner ? (
               <button
                 onClick={() => onTogglePublic(!list.publico)}
-                className={`px-2.5 py-1.5 text-[10px] font-black uppercase rounded-lg border transition-colors ${
+                className={`px-2.5 py-1.5 text-[10px] font-black uppercase rounded-lg border transition-colors whitespace-nowrap ${
                   list.publico ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' : 'bg-slate-900 text-slate-400 border-slate-700'
                 }`}
               >
-                {list.publico ? 'Pública' : 'Privada'}
+                {list.publico ? 'Ativado' : 'Desativado'}
               </button>
             ) : (
-              <span className="text-[10px] text-slate-500">{list.publico ? 'pública' : 'privada'}</span>
+              <span className="text-[10px] text-slate-500">{list.publico ? 'público' : 'privado'}</span>
             )}
           </div>
           {list.publico && (
-            <div className="flex gap-2 mt-2">
-              <input readOnly value={shareUrl} className="flex-1 min-w-0 py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-[10px] focus:outline-none" />
-              <button onClick={copyLink} className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold rounded-lg whitespace-nowrap">
-                {copied ? '✓ Copiado' : 'Copiar link'}
-              </button>
-            </div>
+            <>
+              <div className="flex gap-2 mt-2">
+                <input readOnly value={shareUrl} className="flex-1 min-w-0 py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-[10px] focus:outline-none" />
+                <button onClick={copyLink} className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold rounded-lg whitespace-nowrap">
+                  {copied ? '✓ Copiado' : 'Copiar'}
+                </button>
+              </div>
+              {onShare && (
+                <button onClick={onShare} className="w-full mt-2 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold rounded-lg">
+                  🔗 Compartilhar link
+                </button>
+              )}
+            </>
           )}
         </div>
+
+        {/* Acesso de EDIÇÃO (por convite / login) */}
+        <p className="text-xs font-bold text-slate-200 mb-1">✏️ Acesso de edição</p>
+        <p className="text-[10px] text-slate-500 mb-2">Convidados por e-mail podem editar a lista. Precisam entrar no CineFlow com esse mesmo e-mail do Google.</p>
 
         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 mb-4">
           {list.memberEmails.map((m) => (

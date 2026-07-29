@@ -269,6 +269,41 @@ export async function fetchTmdbTrending(period: 'day' | 'week' = 'week'): Promis
     .map((r: any) => toResult(r, r.media_type, genres));
 }
 
+/** Busca um título pelo id (+ tipo) e devolve no formato de resultado do CineFlow.
+ *  Usado por deep links de compartilhamento (?t=movie-123 / tv-456). */
+export async function fetchTmdbAsResult(
+  id: number,
+  mediaType: 'movie' | 'tv' | string
+): Promise<TmdbSearchResult | null> {
+  const key = getTmdbKey();
+  if (!key || !id) return null;
+  const type: 'movie' | 'tv' = mediaType === 'tv' ? 'tv' : 'movie';
+  const res = await fetch(`${API_BASE}/${type}/${id}?api_key=${key}&language=${LANG}`);
+  if (!res.ok) return null;
+  const d = await res.json();
+  const isMovie = type === 'movie';
+  const rawTitle = isMovie ? d.title : d.name;
+  const date = isMovie ? d.release_date : d.first_air_date;
+  const ano = date ? Number(String(date).slice(0, 4)) : null;
+  const genreObjs: { id: number; name: string }[] = d.genres || [];
+  const genreIds = genreObjs.map((g) => g.id);
+  const generos = genreObjs.map((g) => g.name).filter(Boolean);
+  let tipo: Tipo = isMovie ? 'movie' : 'series';
+  if (genreIds.includes(99)) tipo = 'documentary';
+  else if (genreIds.includes(16) && d.original_language === 'ja') tipo = 'anime';
+  return {
+    key: `${type}-${d.id}`,
+    tmdb_id: d.id,
+    media_type: type,
+    tipo,
+    titulo: rawTitle || 'Título Desconhecido',
+    ano: ano && !Number.isNaN(ano) ? ano : null,
+    generos,
+    poster_url: d.poster_path ? `${IMG_BASE}${d.poster_path}` : '',
+    overview: d.overview || '',
+  };
+}
+
 /** Temporadas de uma série (para o rastreamento por episódio). */
 export async function fetchTvSeasons(id: number): Promise<TvSeason[]> {
   const key = getTmdbKey();
