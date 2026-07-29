@@ -473,8 +473,12 @@ export default function App() {
 
   // Detalhes do título (modal de leitura)
   const [detailItem, setDetailItem] = useState<Item | null>(null);
+  // Quando != null, o modal de detalhes está mostrando um resultado do TMDB
+  // (pré-visualização de um título ainda não adicionado à biblioteca).
+  const [detailPreview, setDetailPreview] = useState<TmdbSearchResult | null>(null);
   const [providers, setProviders] = useState<WatchProviders | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
+  const closeDetail = useCallback(() => { setDetailItem(null); setDetailPreview(null); }, []);
 
   useEffect(() => {
     if (!detailItem || !hasTmdbKey || !detailItem.tmdb_id) { setProviders(null); return; }
@@ -970,6 +974,50 @@ export default function App() {
     fillFormFromTmdb(r);
     setIsModalOpen(true);
     showToast('Revise os dados e guarde na biblioteca.', 'info');
+  };
+
+  // Abre o modal de DETALHES (somente leitura) para um resultado do TMDB,
+  // sem adicionar à biblioteca. Monta um item temporário e enriquece via TMDB.
+  const handlePreviewFromApi = async (r: TmdbSearchResult) => {
+    const base: Item = {
+      id: `preview-${r.key}`,
+      titulo: r.titulo,
+      tipo: r.tipo,
+      ano: Number(r.ano) || 0,
+      generos: Array.isArray(r.generos) ? r.generos : [],
+      poster_url: r.poster_url || '',
+      status_assistido: 'nao_assistido',
+      progresso_porcentagem: 0,
+      temporadas_assistidas_max: 0,
+      temporada_atual: 0,
+      episodio_atual: 0,
+      nota: 0,
+      notas_pessoais: '',
+      tags: [],
+      data_adicao: new Date().toISOString(),
+      overview: r.overview || '',
+      runtime: 0,
+      num_temporadas: 0,
+      num_episodios: 0,
+      elenco: [],
+      backdrop_url: '',
+      tmdb_id: r.tmdb_id || null,
+      tmdb_media_type: r.media_type || '',
+    };
+    setDetailPreview(r);
+    setDetailItem(base);
+    try {
+      if (r.tmdb_id && r.media_type) {
+        const d = await fetchTmdbDetails({ id: r.tmdb_id, mediaType: r.media_type });
+        if (d) {
+          setDetailItem((cur) =>
+            cur && cur.id === base.id
+              ? { ...cur, overview: d.overview || cur.overview, runtime: d.runtime, num_temporadas: d.num_temporadas, num_episodios: d.num_episodios, elenco: d.elenco, backdrop_url: d.backdrop_url }
+              : cur
+          );
+        }
+      }
+    } catch { /* mantém os dados básicos */ }
   };
 
   // Adiciona direto à biblioteca (1 toque), enriquecendo em segundo plano
@@ -1689,7 +1737,9 @@ export default function App() {
                           <img
                             src={r.poster_url || POSTER_FALLBACK}
                             alt={r.titulo}
-                            className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                            onClick={() => handlePreviewFromApi(r)}
+                            title="Ver detalhes"
+                            className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
                           />
                           <div className="min-w-0 flex-1 space-y-1">
@@ -1699,7 +1749,7 @@ export default function App() {
                               </span>
                               <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
                             </div>
-                            <p className="text-xs font-bold text-white leading-tight line-clamp-2" title={r.titulo}>{r.titulo}</p>
+                            <p onClick={() => handlePreviewFromApi(r)} className="text-xs font-bold text-white leading-tight line-clamp-2 cursor-pointer hover:text-purple-300 transition-colors" title={r.titulo}>{r.titulo}</p>
                             {r.generos.length > 0 && (
                               <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>
                             )}
@@ -1717,8 +1767,8 @@ export default function App() {
                                   + Adicionar
                                 </button>
                                 <button
-                                  onClick={() => handleAddFromApi(r)}
-                                  title="Adicionar revisando os detalhes"
+                                  onClick={() => handlePreviewFromApi(r)}
+                                  title="Ver detalhes do título"
                                   className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors"
                                 >
                                   Detalhes…
@@ -1942,7 +1992,9 @@ export default function App() {
                         <img
                           src={r.poster_url || POSTER_FALLBACK}
                           alt={r.titulo}
-                          className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                          onClick={() => handlePreviewFromApi(r)}
+                          title="Ver detalhes"
+                          className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                           onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
                         />
                         <div className="min-w-0 flex-1 space-y-1">
@@ -1952,14 +2004,14 @@ export default function App() {
                             </span>
                             <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
                           </div>
-                          <p className="text-xs font-bold text-white leading-tight line-clamp-2" title={r.titulo}>{r.titulo}</p>
+                          <p onClick={() => handlePreviewFromApi(r)} className="text-xs font-bold text-white leading-tight line-clamp-2 cursor-pointer hover:text-purple-300 transition-colors" title={r.titulo}>{r.titulo}</p>
                           {r.generos.length > 0 && <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>}
                           {jaTem ? (
                             <span className="inline-block text-[10px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-500/20 px-2 py-1 rounded-lg">✓ Na biblioteca</span>
                           ) : (
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
                               <button onClick={() => handleQuickAddFromApi(r)} className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-white bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-colors">+ Adicionar</button>
-                              <button onClick={() => handleAddFromApi(r)} className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors">Detalhes…</button>
+                              <button onClick={() => handlePreviewFromApi(r)} className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors">Detalhes…</button>
                             </div>
                           )}
                         </div>
@@ -1992,7 +2044,9 @@ export default function App() {
                     <img
                       src={r.poster_url || POSTER_FALLBACK}
                       alt={r.titulo}
-                      className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                      onClick={() => handlePreviewFromApi(r)}
+                      title="Ver detalhes"
+                      className="w-14 h-20 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                       onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
                     />
                     <div className="min-w-0 flex-1 space-y-1">
@@ -2002,7 +2056,7 @@ export default function App() {
                         </span>
                         <span className="text-[10px] text-slate-500 font-bold">{r.ano || 's/ ano'}</span>
                       </div>
-                      <p className="text-xs font-bold text-white leading-tight line-clamp-2" title={r.titulo}>{r.titulo}</p>
+                      <p onClick={() => handlePreviewFromApi(r)} className="text-xs font-bold text-white leading-tight line-clamp-2 cursor-pointer hover:text-purple-300 transition-colors" title={r.titulo}>{r.titulo}</p>
                       {r.generos.length > 0 && <p className="text-[10px] text-slate-500 truncate">{r.generos.join(', ')}</p>}
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         <button
@@ -2012,7 +2066,7 @@ export default function App() {
                           + Adicionar
                         </button>
                         <button
-                          onClick={() => handleAddFromApi(r)}
+                          onClick={() => handlePreviewFromApi(r)}
                           className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 px-2 py-1 rounded-lg transition-colors"
                         >
                           Detalhes…
@@ -2214,9 +2268,13 @@ export default function App() {
           providers={providers}
           providersLoading={providersLoading}
           hasTmdbKey={hasTmdbKey}
-          onClose={() => setDetailItem(null)}
+          preview={!!detailPreview}
+          alreadyInLibrary={detailPreview ? isInLibrary(detailPreview) : false}
+          onAdd={detailPreview ? () => { const r = detailPreview; closeDetail(); handleQuickAddFromApi(r); } : undefined}
+          onReview={detailPreview ? () => { const r = detailPreview; closeDetail(); handleAddFromApi(r); } : undefined}
+          onClose={closeDetail}
           onEdit={handleOpenEditModal}
-          onOpenEpisodes={(it) => { setDetailItem(null); setEpisodeItem(it); }}
+          onOpenEpisodes={(it) => { closeDetail(); setEpisodeItem(it); }}
           onSetPriority={handleSetPriority}
           onRefresh={handleRefreshOne}
         />

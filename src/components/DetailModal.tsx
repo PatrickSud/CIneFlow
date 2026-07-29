@@ -14,6 +14,11 @@ interface DetailModalProps {
   onOpenEpisodes: (item: Item) => void;
   onSetPriority: (id: string, value: number) => void;
   onRefresh: (item: Item) => Promise<void>;
+  // Modo pré-visualização: título vindo do TMDB, ainda não na biblioteca.
+  preview?: boolean;
+  alreadyInLibrary?: boolean;
+  onAdd?: () => void;
+  onReview?: () => void;
 }
 
 export default function DetailModal({
@@ -26,6 +31,10 @@ export default function DetailModal({
   onOpenEpisodes,
   onSetPriority,
   onRefresh,
+  preview = false,
+  alreadyInLibrary = false,
+  onAdd,
+  onReview,
 }: DetailModalProps) {
   const episodiosVistos = countWatchedEpisodes(item.episodios_vistos);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,13 +98,15 @@ export default function DetailModal({
         <div className="p-5 space-y-4">
           {/* Meta */}
           <div className="flex flex-wrap gap-2 text-[10px]">
-            <span className={`px-2 py-1 rounded-lg font-bold border ${
-              item.status_assistido === 'assistido' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/20' :
-              item.status_assistido === 'em_andamento' ? 'bg-blue-950/60 text-blue-300 border-blue-500/20' :
-              'bg-slate-950 text-slate-400 border-slate-800'
-            }`}>
-              {item.status_assistido === 'assistido' ? '✓ Assistido' : item.status_assistido === 'em_andamento' ? '🍿 Em Curso' : '⏳ Pendente'}
-            </span>
+            {!preview && (
+              <span className={`px-2 py-1 rounded-lg font-bold border ${
+                item.status_assistido === 'assistido' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/20' :
+                item.status_assistido === 'em_andamento' ? 'bg-blue-950/60 text-blue-300 border-blue-500/20' :
+                'bg-slate-950 text-slate-400 border-slate-800'
+              }`}>
+                {item.status_assistido === 'assistido' ? '✓ Assistido' : item.status_assistido === 'em_andamento' ? '🍿 Em Curso' : '⏳ Pendente'}
+              </span>
+            )}
             {runtime > 0 && (
               <span className="px-2 py-1 rounded-lg font-bold bg-slate-950 text-slate-300 border border-slate-800">
                 ⏱️ {isSerial(item.tipo) ? `~${runtime} min/ep` : `${Math.floor(runtime / 60)}h ${runtime % 60}min`}
@@ -114,7 +125,7 @@ export default function DetailModal({
           </div>
 
           {/* Rastrear episódios (séries) */}
-          {isSerial(item.tipo) && (
+          {!preview && isSerial(item.tipo) && (
             <button
               onClick={() => onOpenEpisodes(item)}
               className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-purple-300 bg-purple-950/40 border border-purple-500/30 rounded-xl py-2 hover:bg-purple-950/60 transition-colors"
@@ -136,6 +147,7 @@ export default function DetailModal({
           )}
 
           {/* Prioridade (watchlist) */}
+          {!preview && (
           <div>
             <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Prioridade</h4>
             <div className="flex gap-1.5 flex-wrap">
@@ -155,6 +167,7 @@ export default function DetailModal({
               })}
             </div>
           </div>
+          )}
 
           {/* Sinopse */}
           {item.overview ? (
@@ -229,30 +242,59 @@ export default function DetailModal({
           )}
 
           {/* Ações */}
-          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
-            {hasTmdbKey && (
+          {preview ? (
+            <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2 flex-wrap">
+              {alreadyInLibrary ? (
+                <span className="mr-auto text-[11px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-500/20 px-3 py-2 rounded-xl">✓ Já está na sua biblioteca</span>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onAdd && onAdd()}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl mr-auto"
+                  >
+                    ➕ Adicionar à biblioteca
+                  </button>
+                  <button
+                    onClick={() => onReview && onReview()}
+                    className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+                  >
+                    ✏️ Revisar e adicionar
+                  </button>
+                </>
+              )}
               <button
-                onClick={doRefresh}
-                disabled={refreshing}
-                title="Atualizar os dados deste título pelo TMDB"
-                className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 disabled:opacity-60 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl mr-auto"
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
               >
-                {refreshing ? '⏳ Atualizando…' : '🔄 Atualizar TMDB'}
+                Fechar
               </button>
-            )}
-            <button
-              onClick={() => { onClose(); onEdit(item); }}
-              className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
-            >
-              ✏️ Editar
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
-            >
-              Fechar
-            </button>
-          </div>
+            </div>
+          ) : (
+            <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+              {hasTmdbKey && (
+                <button
+                  onClick={doRefresh}
+                  disabled={refreshing}
+                  title="Atualizar os dados deste título pelo TMDB"
+                  className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 disabled:opacity-60 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl mr-auto"
+                >
+                  {refreshing ? '⏳ Atualizando…' : '🔄 Atualizar TMDB'}
+                </button>
+              )}
+              <button
+                onClick={() => { onClose(); onEdit(item); }}
+                className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+              >
+                ✏️ Editar
+              </button>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
+              >
+                Fechar
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
