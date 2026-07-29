@@ -1885,6 +1885,12 @@ export default function App() {
                       key={item.id}
                       item={item}
                       onOpenDetail={setDetailItem}
+                      onToggleWatched={handleToggleWatchedQuickly}
+                      onAddToList={(it) => setAddToListItem(it)}
+                      onSetPriority={handleSetPriority}
+                      allTags={allTags}
+                      onAddItemTag={handleAddItemTag}
+                      onRemoveItemTag={handleRemoveItemTag}
                       selectionMode={selectionMode}
                       selected={selectedIds.includes(item.id)}
                       onToggleSelect={toggleSelected}
