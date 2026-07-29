@@ -2189,6 +2189,7 @@ export default function App() {
       {/* Footer */}
       <footer className="py-8 bg-slate-950 text-center text-slate-500 text-xs mb-20">
         <p>🍿 CineFlow — Armazenamento seguro de dados locais.</p>
+        <p className="mt-1.5 text-[11px] text-slate-600">Desenvolvido por Patrick Godoy — Todos os direitos reservados</p>
       </footer>
 
       {/* Botão flutuante de instalar — sempre visível no celular (fora do modo instalado) */}
