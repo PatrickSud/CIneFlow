@@ -104,9 +104,8 @@ export default function ItemCard({
         {/* Info do Card */}
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-start justify-between gap-1.5">
-            {/* Esquerda: ano + prioridade */}
+            {/* Esquerda: prioridade */}
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-xs sm:text-[10px] font-bold text-slate-400">{item.ano || 'N/A'}</span>
               {prio.v > 0 && (
                 <span className={`text-[10px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded border ${prio.badge}`} title={`Prioridade: ${prio.label}`}>
                   {prio.dot} {prio.label}
@@ -114,60 +113,14 @@ export default function ItemCard({
               )}
             </div>
 
-            {/* Meio: botão +TAG + chips (ocupa o espaço até o estado) */}
-            <div className="relative flex items-center flex-wrap gap-1 flex-1 min-w-0">
-              <button
-                type="button"
-                onClick={() => setTagOpen((v) => !v)}
-                className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-slate-600 text-slate-400 hover:text-purple-300 hover:border-purple-500/50 transition-colors flex-shrink-0"
-              >
-                + Tag
-              </button>
+            {/* Meio: chips de tags (ocupa o espaço até o estado) */}
+            <div className="flex items-center flex-wrap gap-1 flex-1 min-w-0 justify-center">
               {itemTags.map((t, tIdx) => (
-                <span key={tIdx} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20">
+                <span key={tIdx} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[10px] sm:text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20">
                   <button type="button" onClick={() => onTagClick(t)} title={`Filtrar por #${t}`} className="hover:text-purple-100">#{t}</button>
                   <button type="button" onClick={() => onRemoveItemTag(item.id, t)} title="Remover tag" className="text-purple-400/60 hover:text-red-300 font-bold leading-none">×</button>
                 </span>
               ))}
-              {tagOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setTagOpen(false)}></div>
-                <div className="absolute top-full left-0 mt-1 z-50 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2">
-                  <div className="flex gap-1 mb-2">
-                    <input
-                      type="text"
-                      value={tagDraft}
-                      onChange={(e) => setTagDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTagFromDraft(); } }}
-                      placeholder="Nova tag…"
-                      className="flex-1 min-w-0 py-1 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 text-[11px] focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={addTagFromDraft}
-                      disabled={!tagDraft.trim()}
-                      className="px-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-sm font-bold rounded-lg"
-                    >
-                      +
-                    </button>
-                  </div>
-                  {suggestTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                      {suggestTags.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => onAddItemTag(item.id, t)}
-                          className="text-[10px] text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 hover:text-purple-300 px-1.5 py-0.5 rounded-lg transition-colors"
-                        >
-                          + {t}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
             </div>
 
             {/* Direita: Estado Badge */}
@@ -265,9 +218,10 @@ export default function ItemCard({
         </p>
       )}
 
-      {/* Footer do Card — ações padronizadas */}
+      {/* Footer do Card — ações padronizadas (igual à visão em grade) */}
       <div className="px-4 py-3 bg-slate-900/40 border-t border-slate-800/80">
-        <div className="grid grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
+          {/* Assistido */}
           <button
             onClick={() => onToggleWatched(item.id)}
             className={`h-9 flex items-center justify-center rounded-xl border text-base transition-all active:scale-95 ${
@@ -281,9 +235,81 @@ export default function ItemCard({
             ✓
           </button>
 
+          {/* +TAG */}
           <div className="relative">
             <button
-              onClick={() => setPrioOpen((v) => !v)}
+              onClick={() => { setTagOpen((v) => !v); setPrioOpen(false); }}
+              className="w-full h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-purple-300 hover:border-purple-500/40 text-base transition-all active:scale-95"
+              title="Adicionar tag"
+              aria-label="Adicionar tag"
+            >
+              #
+            </button>
+            {tagOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setTagOpen(false)}></div>
+                <div className="absolute bottom-full left-0 mb-1.5 z-50 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2">
+                  {itemTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {itemTags.map((t) => (
+                        <span key={t} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[10px] px-1.5 py-0.5 rounded border border-purple-500/20">
+                          #{t}
+                          <button onClick={() => onRemoveItemTag(item.id, t)} title="Remover" className="text-purple-400/60 hover:text-red-300 font-bold leading-none">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-1 mb-2">
+                    <input
+                      type="text"
+                      value={tagDraft}
+                      onChange={(e) => setTagDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTagFromDraft(); } }}
+                      placeholder="Nova tag…"
+                      className="flex-1 min-w-0 py-1 px-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 text-[11px] focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTagFromDraft}
+                      disabled={!tagDraft.trim()}
+                      className="px-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-sm font-bold rounded-lg"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {suggestTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                      {suggestTags.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => onAddItemTag(item.id, t)}
+                          className="text-[10px] text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 hover:text-purple-300 px-1.5 py-0.5 rounded-lg transition-colors"
+                        >
+                          + {t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Adicionar a uma lista */}
+          <button
+            onClick={() => onAddToList(item)}
+            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-purple-300 hover:border-purple-500/40 text-base transition-all active:scale-95"
+            title="Adicionar a uma lista"
+            aria-label="Adicionar a uma lista"
+          >
+            ➕
+          </button>
+
+          {/* Prioridade */}
+          <div className="relative">
+            <button
+              onClick={() => { setPrioOpen((v) => !v); setTagOpen(false); }}
               className={`w-full h-9 flex items-center justify-center rounded-xl border text-base transition-all active:scale-95 ${
                 prio.v > 0 ? prio.badge : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white hover:border-slate-600'
               }`}
@@ -312,31 +338,6 @@ export default function ItemCard({
               </>
             )}
           </div>
-
-          <button
-            onClick={() => onAddToList(item)}
-            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-purple-300 hover:border-purple-500/40 text-base transition-all active:scale-95"
-            title="Adicionar a uma lista"
-            aria-label="Adicionar a uma lista"
-          >
-            ➕
-          </button>
-          <button
-            onClick={() => onEdit(item)}
-            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-purple-300 hover:border-purple-500/40 text-base transition-all active:scale-95"
-            title="Editar ficha"
-            aria-label="Editar ficha"
-          >
-            ✏️
-          </button>
-          <button
-            onClick={() => onDelete(item.id, item.titulo)}
-            className="h-9 flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-500 hover:text-red-400 hover:border-red-500/40 text-base transition-all active:scale-95"
-            title="Remover da biblioteca"
-            aria-label="Remover título da biblioteca"
-          >
-            🗑️
-          </button>
         </div>
       </div>
 

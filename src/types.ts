@@ -5,6 +5,7 @@ export type Tipo =
   | 'movie'
   | 'series'
   | 'anime'
+  | 'dorama'
   | 'documentary'
   | 'miniseries'
   | 'tvshow'

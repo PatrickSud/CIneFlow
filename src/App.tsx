@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { searchTmdb, getTmdbKey, setTmdbKey, keyIsFromEnv, fetchTmdbDetails, fetchWatchProviders, fetchTmdbRecommendations, fetchTmdbTrending } from './lib/tmdb';
 import { itemHasAllTags, computePreferences, pickMatches, totalWatchMinutes, formatMinutes, bestTmdbMatch, countWatchedEpisodes } from './lib/library';
-import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK } from './lib/contentTypes';
+import { TYPES, typeLabel, typeEmoji, isSerial, POSTER_FALLBACK, priorityInfo, classificacaoInfo } from './lib/contentTypes';
 import StarRating from './components/StarRating';
 import Toast from './components/Toast';
 import type { ToastState, ToastType } from './components/Toast';
@@ -1283,6 +1283,21 @@ export default function App() {
       }
       return item;
     }));
+    setDetailItem((d) => {
+      if (!d || d.id !== id) return d;
+      const isWatched = d.status_assistido === 'assistido';
+      return { ...d, status_assistido: isWatched ? 'nao_assistido' : 'assistido', progresso_porcentagem: isWatched ? 0 : 100 };
+    });
+  };
+
+  // Define o estado de visualização explicitamente (usado no modal de detalhes)
+  const handleSetStatus = (id: string, status: Status) => {
+    const patch = (it: Item): Item => {
+      const prog = status === 'assistido' ? 100 : status === 'nao_assistido' ? 0 : (it.progresso_porcentagem || 0);
+      return { ...it, status_assistido: status, progresso_porcentagem: prog };
+    };
+    setItems(prev => prev.map(item => (item.id === id ? patch(item) : item)));
+    setDetailItem((d) => (d && d.id === id ? patch(d) : d));
   };
 
   // Classificação Rápida
@@ -1294,6 +1309,7 @@ export default function App() {
       }
       return item;
     }));
+    setDetailItem((d) => (d && d.id === id ? { ...d, nota: ratingValue } : d));
   };
 
   // Define a prioridade do título (0 nenhuma, 1 baixa, 2 média, 3 alta)
@@ -1312,11 +1328,18 @@ export default function App() {
       if (tags.some(x => x.toLowerCase() === t.toLowerCase())) return item;
       return { ...item, tags: [...tags, t] };
     }));
+    setDetailItem((d) => {
+      if (!d || d.id !== id) return d;
+      const tags = d.tags || [];
+      if (tags.some(x => x.toLowerCase() === t.toLowerCase())) return d;
+      return { ...d, tags: [...tags, t] };
+    });
   };
   const handleRemoveItemTag = (id: string, tag: string) => {
     setItems(prev => prev.map(item =>
       item.id === id ? { ...item, tags: (item.tags || []).filter(x => x.toLowerCase() !== tag.toLowerCase()) } : item
     ));
+    setDetailItem((d) => (d && d.id === id ? { ...d, tags: (d.tags || []).filter(x => x.toLowerCase() !== tag.toLowerCase()) } : d));
   };
 
   // Atualiza os metadados de UM título pelo TMDB (preserva dados pessoais)
@@ -2167,26 +2190,56 @@ export default function App() {
                 <div className="space-y-5">
                   <h3 className="text-center font-bold text-xs text-slate-300 uppercase tracking-widest">Recomendações Ideais para Hoje:</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {matchedItems.map(item => (
-                      <div
+                    {matchedItems.map(item => {
+                      const mprio = priorityInfo(item.prioridade);
+                      const mci = classificacaoInfo(item.classificacao);
+                      return (
+                      <button
                         key={item.id}
-                        className="bg-slate-900 border-2 border-purple-500/30 p-4 rounded-2xl flex space-x-3 items-start relative overflow-hidden"
+                        type="button"
+                        onClick={() => setDetailItem(item)}
+                        title="Ver detalhes"
+                        className="text-left bg-slate-900 border-2 border-purple-500/30 hover:border-purple-500/70 p-4 rounded-2xl flex space-x-3 items-start relative overflow-hidden transition-colors"
                       >
                         <img
                           src={item.poster_url || POSTER_FALLBACK}
                           alt={item.titulo}
-                          className="w-16 h-24 object-cover rounded-lg bg-slate-950 border border-slate-800"
+                          className="w-16 h-24 object-cover rounded-lg bg-slate-950 border border-slate-800 flex-shrink-0"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = POSTER_FALLBACK; }}
                         />
-                        <div className="flex-1 space-y-1">
-                          <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded uppercase font-bold">
-                            {typeEmoji(item.tipo)} {typeLabel(item.tipo)}
-                          </span>
-                          <h4 className="font-bold text-sm text-white leading-tight mt-1">{item.titulo}</h4>
-                          <p className="text-[10px] text-slate-400">{item.ano}</p>
-                          {item.nota > 0 && <span className="text-amber-400 text-xs">★ {item.nota}/5</span>}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded uppercase font-bold">
+                              {typeEmoji(item.tipo)} {typeLabel(item.tipo)}
+                            </span>
+                            {mci && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${mci.classes}`} title={mci.descricao}>{mci.label}</span>}
+                          </div>
+                          <h4 className="font-bold text-sm text-white leading-tight mt-1 line-clamp-2">{item.titulo}</h4>
+                          <p className="text-[10px] text-slate-400">
+                            {item.ano || 's/ ano'}
+                            {item.nota > 0 && <span className="text-amber-400"> · ★ {item.nota}/5</span>}
+                          </p>
+                          {Array.isArray(item.generos) && item.generos.length > 0 && (
+                            <p className="text-[10px] text-slate-500 truncate">{item.generos.slice(0, 3).join(', ')}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                              item.status_assistido === 'assistido' ? 'bg-emerald-950/80 text-emerald-400' :
+                              item.status_assistido === 'em_andamento' ? 'bg-blue-950/80 text-blue-300' :
+                              'bg-slate-950/80 text-slate-400'
+                            }`}>
+                              {item.status_assistido === 'assistido' ? '✓ Assistido' : item.status_assistido === 'em_andamento' ? '🍿 Em Curso' : '⏳ Pendente'}
+                            </span>
+                            {mprio.v > 0 && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${mprio.badge}`}>{mprio.dot} {mprio.label}</span>
+                            )}
+                          </div>
+                          {item.overview && <p className="text-[10px] text-slate-500 leading-snug line-clamp-2 pt-0.5">{item.overview}</p>}
+                          <span className="inline-block text-[10px] text-purple-400 font-bold pt-1">Ver detalhes →</span>
                         </div>
-                      </div>
-                    ))}
+                      </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -2523,9 +2576,14 @@ export default function App() {
           onAdd={detailPreview ? () => { const r = detailPreview; closeDetail(); handleQuickAddFromApi(r); } : undefined}
           onReview={detailPreview ? () => { const r = detailPreview; closeDetail(); handleAddFromApi(r); } : undefined}
           onClose={closeDetail}
-          onEdit={handleOpenEditModal}
           onOpenEpisodes={(it) => { closeDetail(); setEpisodeItem(it); }}
           onSetPriority={handleSetPriority}
+          onSetStatus={handleSetStatus}
+          onRate={handleRateQuickly}
+          onAddItemTag={handleAddItemTag}
+          onRemoveItemTag={handleRemoveItemTag}
+          onDelete={handleDeleteItem}
+          allTags={allTags}
           onRefresh={handleRefreshOne}
         />
       )}

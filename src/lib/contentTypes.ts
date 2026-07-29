@@ -13,6 +13,7 @@ export const TYPES: ContentType[] = [
   { id: 'movie',       label: 'Filme',               emoji: '🎬', serial: false },
   { id: 'series',      label: 'Série',               emoji: '📺', serial: true  },
   { id: 'anime',       label: 'Anime',               emoji: '🍥', serial: true  },
+  { id: 'dorama',      label: 'Dorama',              emoji: '🌸', serial: true  },
   { id: 'documentary', label: 'Documentário',        emoji: '🎥', serial: false },
   { id: 'miniseries',  label: 'Minissérie',          emoji: '📼', serial: true  },
   { id: 'tvshow',      label: 'Programa de TV',      emoji: '🎙️', serial: true  },

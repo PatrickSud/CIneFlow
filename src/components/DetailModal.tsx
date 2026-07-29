@@ -1,8 +1,15 @@
 // Modal de detalhes de um título (sinopse, elenco, onde assistir).
-import { useState, useEffect } from 'react';
-import type { Item, WatchProviders, Provider } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import type { Item, Status, WatchProviders, Provider } from '../types';
 import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK, PRIORITIES, classificacaoInfo } from '../lib/contentTypes';
 import { countWatchedEpisodes } from '../lib/library';
+import StarRating from './StarRating';
+
+const STATUS_OPTS: { v: Status; label: string; chip: string }[] = [
+  { v: 'nao_assistido', label: '⏳ Pendente', chip: 'bg-slate-700 text-white border-slate-600' },
+  { v: 'em_andamento',  label: '🍿 Em Curso', chip: 'bg-blue-600 text-white border-blue-500' },
+  { v: 'assistido',     label: '✓ Assistido', chip: 'bg-emerald-600 text-white border-emerald-500' },
+];
 
 interface DetailModalProps {
   item: Item;
@@ -10,9 +17,14 @@ interface DetailModalProps {
   providersLoading: boolean;
   hasTmdbKey: boolean;
   onClose: () => void;
-  onEdit: (item: Item) => void;
   onOpenEpisodes: (item: Item) => void;
   onSetPriority: (id: string, value: number) => void;
+  onSetStatus: (id: string, status: Status) => void;
+  onRate: (id: string, star: number) => void;
+  onAddItemTag: (id: string, tag: string) => void;
+  onRemoveItemTag: (id: string, tag: string) => void;
+  onDelete: (id: string, titulo: string) => void;
+  allTags: string[];
   onRefresh: (item: Item) => Promise<void>;
   // Modo pré-visualização: título vindo do TMDB, ainda não na biblioteca.
   preview?: boolean;
@@ -27,9 +39,14 @@ export default function DetailModal({
   providersLoading,
   hasTmdbKey,
   onClose,
-  onEdit,
   onOpenEpisodes,
   onSetPriority,
+  onSetStatus,
+  onRate,
+  onAddItemTag,
+  onRemoveItemTag,
+  onDelete,
+  allTags,
   onRefresh,
   preview = false,
   alreadyInLibrary = false,
@@ -40,6 +57,16 @@ export default function DetailModal({
   const [refreshing, setRefreshing] = useState(false);
   const [zoomImg, setZoomImg] = useState<string | null>(null);
   const [trailerOpen, setTrailerOpen] = useState(false);
+  const [tagDraft, setTagDraft] = useState('');
+  const trailerBoxRef = useRef<HTMLDivElement | null>(null);
+  const itemTags = item.tags || [];
+  const suggestTags = allTags.filter((t) => !itemTags.some((x) => x.toLowerCase() === t.toLowerCase()));
+  const addTagFromDraft = () => {
+    const v = tagDraft.trim();
+    if (!v) return;
+    onAddItemTag(item.id, v);
+    setTagDraft('');
+  };
   // Cor de destaque extraída do pôster (rgb "r, g, b"); null = usa o padrão roxo.
   const [accent, setAccent] = useState<string | null>(null);
 
@@ -80,6 +107,25 @@ export default function DetailModal({
     img.src = src;
     return () => { cancelled = true; };
   }, [item.poster_url]);
+
+  // Ao abrir o trailer, tenta tela cheia em paisagem (best-effort; ignora se não suportado).
+  useEffect(() => {
+    if (!trailerOpen) return;
+    const el = trailerBoxRef.current as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }) | null;
+    const orient = (screen as any)?.orientation;
+    (async () => {
+      try {
+        if (el?.requestFullscreen) await el.requestFullscreen();
+        else if (el?.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+        if (orient?.lock) { try { await orient.lock('landscape'); } catch { /* sem suporte */ } }
+      } catch { /* sem suporte a tela cheia */ }
+    })();
+    return () => {
+      try { if (orient?.unlock) orient.unlock(); } catch { /* ignora */ }
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch { /* ignora */ }
+    };
+  }, [trailerOpen]);
+
   const doRefresh = async () => {
     setRefreshing(true);
     try { await onRefresh(item); } finally { setRefreshing(false); }
@@ -216,39 +262,107 @@ export default function DetailModal({
             </button>
           )}
 
-          {/* Gêneros + Tags */}
-          {(generos.length > 0 || tags.length > 0) && (
+          {/* Gêneros */}
+          {generos.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {generos.map((g, i) => (
                 <span key={`g${i}`} className="text-[10px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">{g}</span>
               ))}
+            </div>
+          )}
+
+          {preview && tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
               {tags.map((t, i) => (
                 <span key={`t${i}`} className="text-[10px] bg-purple-950/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">#{t}</span>
               ))}
             </div>
           )}
 
-          {/* Prioridade (watchlist) */}
+          {/* Edição rápida: estado, classificação, prioridade e tags */}
           {!preview && (
-          <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Prioridade</h4>
-            <div className="flex gap-1.5 flex-wrap">
-              {PRIORITIES.map((p) => {
-                const on = (item.prioridade || 0) === p.v;
-                return (
-                  <button
-                    key={p.v}
-                    onClick={() => onSetPriority(item.id, p.v)}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
-                      on ? p.chip : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-600'
-                    }`}
-                  >
-                    {p.v > 0 ? `${p.dot} ` : ''}{p.label}
-                  </button>
-                );
-              })}
+            <div className="space-y-3 bg-slate-950/40 border border-slate-800 rounded-2xl p-3">
+              {/* Estado de visualização */}
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Estado de visualização</h4>
+                <div className="flex gap-1.5 flex-wrap">
+                  {STATUS_OPTS.map((s) => {
+                    const on = item.status_assistido === s.v;
+                    return (
+                      <button
+                        key={s.v}
+                        onClick={() => onSetStatus(item.id, s.v)}
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                          on ? s.chip : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Classificação (estrelas) */}
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Sua classificação</h4>
+                <StarRating value={item.nota || 0} onRate={(star) => onRate(item.id, star)} />
+              </div>
+
+              {/* Prioridade (watchlist) */}
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Prioridade</h4>
+                <div className="flex gap-1.5 flex-wrap">
+                  {PRIORITIES.map((p) => {
+                    const on = (item.prioridade || 0) === p.v;
+                    return (
+                      <button
+                        key={p.v}
+                        onClick={() => onSetPriority(item.id, p.v)}
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                          on ? p.chip : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        {p.v > 0 ? `${p.dot} ` : ''}{p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Tags</h4>
+                {itemTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {itemTags.map((t) => (
+                      <span key={t} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[11px] px-2 py-0.5 rounded border border-purple-500/20">
+                        #{t}
+                        <button onClick={() => onRemoveItemTag(item.id, t)} title="Remover" className="text-purple-400/60 hover:text-red-300 font-bold leading-none ml-0.5">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={tagDraft}
+                    onChange={(e) => setTagDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTagFromDraft(); } }}
+                    placeholder="Nova tag…"
+                    className="flex-1 min-w-0 py-1.5 px-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                  <button onClick={addTagFromDraft} disabled={!tagDraft.trim()} className="px-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-sm font-bold rounded-lg">+</button>
+                </div>
+                {suggestTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2 max-h-20 overflow-y-auto">
+                    {suggestTags.map((t) => (
+                      <button key={t} onClick={() => onAddItemTag(item.id, t)} className="text-[10px] text-slate-300 bg-slate-950 border border-slate-800 hover:border-purple-500/40 hover:text-purple-300 px-1.5 py-0.5 rounded-lg transition-colors">+ {t}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           )}
 
           {/* Sinopse */}
@@ -364,10 +478,10 @@ export default function DetailModal({
                 </button>
               )}
               <button
-                onClick={() => { onClose(); onEdit(item); }}
-                className="px-4 py-2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+                onClick={() => { onClose(); onDelete(item.id, item.titulo); }}
+                className="px-4 py-2 bg-red-950/60 border border-red-500/30 hover:bg-red-950 text-red-300 text-xs font-bold uppercase tracking-wider rounded-xl"
               >
-                ✏️ Editar
+                🗑️ Excluir
               </button>
               <button
                 onClick={onClose}
@@ -416,12 +530,12 @@ export default function DetailModal({
         >
           ✕
         </button>
-        <div className="w-full max-w-3xl aspect-video" onClick={(e) => e.stopPropagation()}>
+        <div ref={trailerBoxRef} className="w-full max-w-3xl aspect-video bg-black flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
           <iframe
             className="w-full h-full rounded-xl shadow-2xl"
-            src={`https://www.youtube.com/embed/${item.trailer_key}?autoplay=1&rel=0`}
+            src={`https://www.youtube.com/embed/${item.trailer_key}?autoplay=1&rel=0&playsinline=1`}
             title={`Trailer — ${item.titulo}`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
             allowFullScreen
           ></iframe>
         </div>
