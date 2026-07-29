@@ -6,6 +6,8 @@ export interface ToastState {
   show: boolean;
   message: string;
   type: ToastType;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export default function Toast({ toast }: { toast: ToastState }) {
@@ -24,6 +26,14 @@ export default function Toast({ toast }: { toast: ToastState }) {
     >
       <span>{toast.type === 'error' ? '⚠️' : toast.type === 'info' ? 'ℹ️' : '✓'}</span>
       <span>{toast.message}</span>
+      {toast.actionLabel && toast.onAction && (
+        <button
+          onClick={toast.onAction}
+          className="ml-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black uppercase tracking-wider text-[10px] transition-colors"
+        >
+          {toast.actionLabel}
+        </button>
+      )}
     </div>
   );
 }

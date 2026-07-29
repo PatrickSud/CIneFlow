@@ -43,6 +43,7 @@
     "src/components/AddToListModal.tsx",
     "src/components/EpisodeTrackerModal.tsx",
     "src/components/PublicListViewer.tsx",
-    "src/components/BulkActionBar.tsx"
+    "src/components/BulkActionBar.tsx",
+    "src/components/CompactCard.tsx"
   ]
 }

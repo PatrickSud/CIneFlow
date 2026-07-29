@@ -1,5 +1,5 @@
 // Modal de detalhes de um título (sinopse, elenco, onde assistir).
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Item, WatchProviders, Provider } from '../types';
 import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK, PRIORITIES } from '../lib/contentTypes';
 import { countWatchedEpisodes } from '../lib/library';
@@ -40,6 +40,46 @@ export default function DetailModal({
   const [refreshing, setRefreshing] = useState(false);
   const [zoomImg, setZoomImg] = useState<string | null>(null);
   const [trailerOpen, setTrailerOpen] = useState(false);
+  // Cor de destaque extraída do pôster (rgb "r, g, b"); null = usa o padrão roxo.
+  const [accent, setAccent] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAccent(null);
+    const src = item.poster_url;
+    if (!src) return;
+    let cancelled = false;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const w = 16, h = 24;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, w, h);
+        const { data } = ctx.getImageData(0, 0, w, h);
+        let best = { r: 124, g: 58, b: 237 };
+        let bestScore = -1;
+        let ar = 0, ag = 0, ab = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+          if (a < 200) continue;
+          ar += r; ag += g; ab += b; n++;
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const sat = max === 0 ? 0 : (max - min) / max;
+          const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          const score = sat * (1 - Math.abs(lum - 0.5)); // vibrante e nem escuro nem claro demais
+          if (score > bestScore) { bestScore = score; best = { r, g, b }; }
+        }
+        const pick = bestScore > 0.12 ? best : (n ? { r: Math.round(ar / n), g: Math.round(ag / n), b: Math.round(ab / n) } : best);
+        if (!cancelled) setAccent(`${pick.r}, ${pick.g}, ${pick.b}`);
+      } catch { /* CORS/canvas: mantém o padrão */ }
+    };
+    img.onerror = () => { /* mantém o padrão */ };
+    img.src = src;
+    return () => { cancelled = true; };
+  }, [item.poster_url]);
   const doRefresh = async () => {
     setRefreshing(true);
     try { await onRefresh(item); } finally { setRefreshing(false); }
@@ -65,7 +105,11 @@ export default function DetailModal({
   return (
     <>
     <div className="fixed inset-0 z-[65] flex items-start justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
-      <div className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-lg w-full shadow-2xl my-8 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="relative bg-slate-900 rounded-3xl border border-slate-800 max-w-lg w-full shadow-2xl my-8 overflow-hidden"
+        style={accent ? { boxShadow: `0 20px 60px -15px rgba(${accent}, 0.45)` } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Backdrop / cabeçalho */}
         <div className="relative h-40 bg-slate-950">
           {item.backdrop_url ? (
@@ -76,7 +120,17 @@ export default function DetailModal({
               className="w-full h-full object-cover opacity-60 cursor-zoom-in"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-purple-900/40 to-slate-900"></div>
+            <div
+              className="w-full h-full"
+              style={{ background: `linear-gradient(135deg, rgba(${accent || '124, 58, 237'}, 0.45), #0f172a)` }}
+            ></div>
+          )}
+          {/* Tonalidade de destaque a partir do pôster */}
+          {accent && (
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: `linear-gradient(to top, rgba(${accent}, 0), rgba(${accent}, 0.4))` }}
+            ></div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
           <button

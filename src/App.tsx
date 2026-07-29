@@ -26,6 +26,7 @@ import AddToListModal from './components/AddToListModal';
 import PublicListViewer from './components/PublicListViewer';
 import EpisodeTrackerModal from './components/EpisodeTrackerModal';
 import BulkActionBar from './components/BulkActionBar';
+import CompactCard from './components/CompactCard';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -273,26 +274,32 @@ export default function App() {
   // --- Ações em lote (multi-seleção) ---
   const bulkSetPriority = (value: number) => {
     if (selectedIds.length === 0) return;
+    const snapshot = items;
+    const n = selectedIds.length;
     setItems((prev) => prev.map((i) => (selectedIds.includes(i.id) ? { ...i, prioridade: value } : i)));
-    showToast(`Prioridade aplicada a ${selectedIds.length} título(s).`);
+    showUndo(`Prioridade aplicada a ${n} título(s).`, snapshot);
   };
   const bulkSetWatched = (watched: boolean) => {
     if (selectedIds.length === 0) return;
+    const snapshot = items;
+    const n = selectedIds.length;
     setItems((prev) => prev.map((i) => (selectedIds.includes(i.id)
       ? { ...i, status_assistido: watched ? 'assistido' : 'nao_assistido', progresso_porcentagem: watched ? 100 : 0 }
       : i)));
-    showToast(`${selectedIds.length} título(s) marcado(s) como ${watched ? 'assistido' : 'não assistido'}.`);
+    showUndo(`${n} título(s) marcado(s) como ${watched ? 'assistido' : 'não assistido'}.`, snapshot);
   };
   const bulkAddTags = (tags: string[]) => {
     const clean = tags.map((t) => t.trim()).filter(Boolean);
     if (selectedIds.length === 0 || clean.length === 0) return;
+    const snapshot = items;
+    const n = selectedIds.length;
     setItems((prev) => prev.map((i) => {
       if (!selectedIds.includes(i.id)) return i;
       const merged = [...(i.tags || [])];
       clean.forEach((t) => { if (!merged.some((x) => x.toLowerCase() === t.toLowerCase())) merged.push(t); });
       return { ...i, tags: merged };
     }));
-    showToast(`${clean.length} tag(s) adicionada(s) a ${selectedIds.length} título(s).`);
+    showUndo(`${clean.length} tag(s) adicionada(s) a ${n} título(s).`, snapshot);
   };
   // Adiciona os títulos selecionados às listas escolhidas
   const bulkAddToLists = async (listIds: string[]) => {
@@ -345,7 +352,12 @@ export default function App() {
 
   // Filtros da Lista
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('all'); 
+  const [filterType, setFilterType] = useState<string>(() => {
+    try { return localStorage.getItem('cineflow_filter_type') || 'all'; } catch { return 'all'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cineflow_filter_type', filterType); } catch { /* ignora */ }
+  }, [filterType]);
   const [filterStatus, setFilterStatus] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('cineflow_filter_status');
@@ -362,6 +374,13 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('cineflow_sort', sortBy); } catch { /* ignora */ }
   }, [sortBy]);
+  // Densidade de exibição: 'comfortable' (cards) | 'compact' (grade de pôsteres)
+  const [density, setDensity] = useState<string>(() => {
+    try { return localStorage.getItem('cineflow_density') || 'comfortable'; } catch { return 'comfortable'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cineflow_density', density); } catch { /* ignora */ }
+  }, [density]);
 
   // Modal de Adicionar / Editar
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -388,7 +407,16 @@ export default function App() {
   const [formExtra, setFormExtra] = useState(emptyExtra);
 
   // Filtro por tags na Lista (interseção — precisa ter todas)
-  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterTags, setFilterTags] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('cineflow_filter_tags');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cineflow_filter_tags', JSON.stringify(filterTags)); } catch { /* ignora */ }
+  }, [filterTags]);
 
   // Busca TMDB (preenchimento automático de metadados)
   const [tmdbQuery, setTmdbQuery] = useState('');
@@ -594,9 +622,25 @@ export default function App() {
 
   // Notificações (Toast)
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
-  const showToast = (message: string, type: ToastType = 'success') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideToast = () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast((t) => ({ ...t, show: false }));
+  };
+  const showToast = (message: string, type: ToastType = 'success', action?: { label: string; onClick: () => void }) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({
+      show: true,
+      message,
+      type,
+      actionLabel: action?.label,
+      onAction: action ? () => { action.onClick(); hideToast(); } : undefined,
+    });
+    toastTimerRef.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), action ? 6000 : 3000);
+  };
+  // Executa uma ação e oferece "Desfazer" restaurando o estado anterior de items.
+  const showUndo = (message: string, snapshot: Item[]) => {
+    showToast(message, 'info', { label: 'Desfazer', onClick: () => { setItems(snapshot); showToast('Ação desfeita.', 'info'); } });
   };
 
   // --- PWA / instalação no celular ---
@@ -1157,10 +1201,11 @@ export default function App() {
   };
   const confirmDelete = () => {
     const { id } = confirmState;
+    const snapshot = items;
     setItems(prev => prev.filter(item => item.id !== id));
     setMatchedItems(prev => prev.filter(item => item.id !== id));
     setConfirmState({ open: false, id: null, titulo: '' });
-    showToast('Registo excluído com sucesso!', 'info');
+    showUndo('Título excluído.', snapshot);
   };
 
   // --- Gerenciador de Tags (aplica a toda a biblioteca) ---
@@ -1778,36 +1823,101 @@ export default function App() {
                     {selectionMode ? '✕ Cancelar seleção' : '☑ Selecionar'}
                   </button>
                 )}
+                {/* Alternador de densidade */}
+                {processedItems.length > 0 && (
+                  <div className="flex items-center rounded-lg border border-slate-800 overflow-hidden">
+                    <button
+                      onClick={() => setDensity('comfortable')}
+                      title="Visualização em cards"
+                      aria-pressed={density === 'comfortable'}
+                      className={`px-2 py-1 text-sm ${density === 'comfortable' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'}`}
+                    >
+                      ▭
+                    </button>
+                    <button
+                      onClick={() => setDensity('compact')}
+                      title="Visualização compacta"
+                      aria-pressed={density === 'compact'}
+                      className={`px-2 py-1 text-sm ${density === 'compact' ? 'bg-purple-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'}`}
+                    >
+                      ▦
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Lista Grid */}
             {processedItems.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {processedItems.map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    onOpenDetail={setDetailItem}
-                    onRate={handleRateQuickly}
-                    onToggleWatched={handleToggleWatchedQuickly}
-                    onEdit={handleOpenEditModal}
-                    onDelete={handleDeleteItem}
-                    onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
-                    onAddToList={(it) => setAddToListItem(it)}
-                    onSetPriority={handleSetPriority}
-                    allTags={allTags}
-                    onAddItemTag={handleAddItemTag}
-                    onRemoveItemTag={handleRemoveItemTag}
-                    selectionMode={selectionMode}
-                    selected={selectedIds.includes(item.id)}
-                    onToggleSelect={toggleSelected}
-                  />
-                ))}
+              density === 'compact' ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {processedItems.map((item) => (
+                    <CompactCard
+                      key={item.id}
+                      item={item}
+                      onOpenDetail={setDetailItem}
+                      selectionMode={selectionMode}
+                      selected={selectedIds.includes(item.id)}
+                      onToggleSelect={toggleSelected}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {processedItems.map((item) => (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      onOpenDetail={setDetailItem}
+                      onRate={handleRateQuickly}
+                      onToggleWatched={handleToggleWatchedQuickly}
+                      onEdit={handleOpenEditModal}
+                      onDelete={handleDeleteItem}
+                      onTagClick={(t) => { setFilterTags([t]); setActiveTab('lista'); }}
+                      onAddToList={(it) => setAddToListItem(it)}
+                      onSetPriority={handleSetPriority}
+                      allTags={allTags}
+                      onAddItemTag={handleAddItemTag}
+                      onRemoveItemTag={handleRemoveItemTag}
+                      selectionMode={selectionMode}
+                      selected={selectedIds.includes(item.id)}
+                      onToggleSelect={toggleSelected}
+                    />
+                  ))}
+                </div>
+              )
+            ) : items.length === 0 ? (
+              /* Biblioteca totalmente vazia: boas-vindas com ações */
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 sm:p-16 text-center max-w-md mx-auto">
+                <div className="text-5xl mb-3">🎬</div>
+                <h3 className="text-base font-black text-white mb-1">Sua biblioteca está vazia</h3>
+                <p className="text-sm text-slate-400 mb-5">Comece adicionando um título manualmente ou descubra o que está em alta.</p>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <button
+                    onClick={() => handleOpenAddModal('manual')}
+                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl"
+                  >
+                    ＋ Adicionar título
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('descobrir')}
+                    className="px-4 py-2.5 bg-slate-950 border border-slate-800 hover:border-purple-500/40 text-slate-200 text-xs font-bold uppercase tracking-wider rounded-xl"
+                  >
+                    ✨ Ir para Descobrir
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-16 text-center max-w-md mx-auto">
-                <p className="text-sm text-slate-400">Nenhum título encontrado com a filtragem atual.</p>
+              /* Há títulos, mas o filtro não retornou nada */
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center max-w-md mx-auto">
+                <div className="text-4xl mb-3">🔍</div>
+                <p className="text-sm text-slate-400 mb-4">Nenhum título encontrado com a filtragem atual.</p>
+                <button
+                  onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterStatus([]); setFilterTags([]); }}
+                  className="px-4 py-2 bg-slate-950 border border-slate-800 hover:border-purple-500/40 text-purple-300 text-xs font-bold uppercase tracking-wider rounded-xl"
+                >
+                  Limpar filtros
+                </button>
               </div>
             )}
 
