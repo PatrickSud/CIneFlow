@@ -27,6 +27,7 @@ import PublicListViewer from './components/PublicListViewer';
 import EpisodeTrackerModal from './components/EpisodeTrackerModal';
 import BulkActionBar from './components/BulkActionBar';
 import CompactCard from './components/CompactCard';
+import RateOnWatchModal from './components/RateOnWatchModal';
 
 const STORAGE_KEY = 'cineflow_extended_db_v3';
 
@@ -1267,27 +1268,32 @@ export default function App() {
     showToast(`Tag "${label}" removida de toda a biblioteca.`, 'info');
   };
 
-  // Alteração Rápida de Status
+  // Modal de classificação ao marcar como assistido
+  const [rateModalItem, setRateModalItem] = useState<Item | null>(null);
+
+  // Alteração Rápida de Status.
+  // Ao MARCAR como assistido, abre o modal de classificação (não grava ainda).
+  // Ao DESMARCAR, aplica direto.
   const handleToggleWatchedQuickly = (id: string) => {
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const isCurrentlyWatched = item.status_assistido === 'assistido';
-        const nextStatus = isCurrentlyWatched ? 'nao_assistido' : 'assistido';
-        const nextProgress = isCurrentlyWatched ? 0 : 100;
-        showToast(`Marcado como ${isCurrentlyWatched ? 'Não assistido' : 'Assistido'}`);
-        return {
-          ...item,
-          status_assistido: nextStatus,
-          progresso_porcentagem: nextProgress
-        };
-      }
-      return item;
-    }));
-    setDetailItem((d) => {
-      if (!d || d.id !== id) return d;
-      const isWatched = d.status_assistido === 'assistido';
-      return { ...d, status_assistido: isWatched ? 'nao_assistido' : 'assistido', progresso_porcentagem: isWatched ? 0 : 100 };
-    });
+    const it = items.find((i) => i.id === id);
+    if (!it) return;
+    if (it.status_assistido === 'assistido') {
+      setItems(prev => prev.map(item => (item.id === id ? { ...item, status_assistido: 'nao_assistido', progresso_porcentagem: 0 } : item)));
+      setDetailItem((d) => (d && d.id === id ? { ...d, status_assistido: 'nao_assistido', progresso_porcentagem: 0 } : d));
+      showToast('Marcado como Não assistido', 'info');
+    } else {
+      setRateModalItem(it);
+    }
+  };
+
+  // Confirma no modal: grava assistido + a nota escolhida (0 = sem nota)
+  const confirmWatched = (id: string, nota: number) => {
+    setItems(prev => prev.map(item => (item.id === id
+      ? { ...item, status_assistido: 'assistido', progresso_porcentagem: 100, nota }
+      : item)));
+    setDetailItem((d) => (d && d.id === id ? { ...d, status_assistido: 'assistido', progresso_porcentagem: 100, nota } : d));
+    setRateModalItem(null);
+    showToast(nota > 0 ? `Assistido · ${nota}★` : 'Marcado como assistido');
   };
 
   // Define o estado de visualização explicitamente (usado no modal de detalhes)
@@ -2587,6 +2593,13 @@ export default function App() {
           onRefresh={handleRefreshOne}
         />
       )}
+
+      {/* ==================== CLASSIFICAR AO MARCAR COMO ASSISTIDO ==================== */}
+      <RateOnWatchModal
+        item={rateModalItem}
+        onCancel={() => setRateModalItem(null)}
+        onConfirm={confirmWatched}
+      />
 
       {/* ==================== RASTREAMENTO POR EPISÓDIO ==================== */}
       <EpisodeTrackerModal

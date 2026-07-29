@@ -104,17 +104,8 @@ export default function ItemCard({
         {/* Info do Card */}
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-start justify-between gap-1.5">
-            {/* Esquerda: prioridade */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {prio.v > 0 && (
-                <span className={`text-[10px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded border ${prio.badge}`} title={`Prioridade: ${prio.label}`}>
-                  {prio.dot} {prio.label}
-                </span>
-              )}
-            </div>
-
-            {/* Meio: chips de tags (ocupa o espaço até o estado) */}
-            <div className="flex items-center flex-wrap gap-1 flex-1 min-w-0 justify-center">
+            {/* Esquerda: chips de tags */}
+            <div className="flex items-center flex-wrap gap-1 flex-1 min-w-0">
               {itemTags.map((t, tIdx) => (
                 <span key={tIdx} className="inline-flex items-center gap-0.5 bg-purple-950/50 text-purple-300 text-[10px] sm:text-[9px] px-1.5 py-0.5 rounded border border-purple-500/20">
                   <button type="button" onClick={() => onTagClick(t)} title={`Filtrar por #${t}`} className="hover:text-purple-100">#{t}</button>

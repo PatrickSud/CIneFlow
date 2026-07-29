@@ -79,8 +79,16 @@ export default function CompactCard({
           <span className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[11px] font-bold text-slate-200" title={typeLabel(item.tipo)}>
             {typeEmoji(item.tipo)}
           </span>
-          {prio.v > 0 && (
-            <span className="absolute top-1 right-1 text-[12px]" title={`Prioridade: ${prio.label}`}>{prio.dot}</span>
+          {/* Tags vinculadas (no lugar da bolinha de prioridade) */}
+          {itemTags.length > 0 && (
+            <div className="absolute top-1 right-1 flex flex-col items-end gap-0.5 max-w-[75%]">
+              {itemTags.slice(0, 2).map((t) => (
+                <span key={t} className="bg-purple-900/85 text-purple-100 text-[9px] font-bold px-1.5 py-0.5 rounded leading-none max-w-full truncate" title={`#${t}`}>#{t}</span>
+              ))}
+              {itemTags.length > 2 && (
+                <span className="bg-slate-900/85 text-slate-300 text-[9px] font-bold px-1 py-0.5 rounded leading-none">+{itemTags.length - 2}</span>
+              )}
+            </div>
           )}
           {item.nota > 0 && (
             <span className="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-bold text-amber-300">★ {item.nota}</span>

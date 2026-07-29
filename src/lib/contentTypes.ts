@@ -38,9 +38,9 @@ export interface PriorityLevel {
 }
 export const PRIORITIES: PriorityLevel[] = [
   { v: 0, label: 'Nenhuma', dot: '⚪', badge: '', chip: 'bg-slate-700 text-white border-slate-600' },
-  { v: 1, label: 'Baixa',   dot: '🔵', badge: 'bg-blue-950/60 text-blue-300 border-blue-500/25',   chip: 'bg-blue-600 text-white border-blue-500' },
-  { v: 2, label: 'Média',   dot: '🟡', badge: 'bg-amber-950/60 text-amber-300 border-amber-500/25', chip: 'bg-amber-600 text-white border-amber-500' },
-  { v: 3, label: 'Alta',    dot: '🔴', badge: 'bg-red-950/60 text-red-300 border-red-500/25',       chip: 'bg-red-600 text-white border-red-500' },
+  { v: 1, label: 'Baixa',   dot: '🔵', badge: 'bg-blue-500/25 text-blue-200 border-blue-400/50',     chip: 'bg-blue-500 text-white border-blue-400' },
+  { v: 2, label: 'Média',   dot: '🟡', badge: 'bg-yellow-400/25 text-yellow-100 border-yellow-400/60', chip: 'bg-yellow-400 text-black border-yellow-300' },
+  { v: 3, label: 'Alta',    dot: '🔴', badge: 'bg-red-500/25 text-red-200 border-red-400/50',        chip: 'bg-red-500 text-white border-red-400' },
 ];
 export const priorityInfo = (v?: number): PriorityLevel => PRIORITIES[Math.max(0, Math.min(3, v || 0))];
 
