@@ -1,7 +1,7 @@
 // Modal de detalhes de um título (sinopse, elenco, onde assistir).
 import { useState, useEffect } from 'react';
 import type { Item, WatchProviders, Provider } from '../types';
-import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK, PRIORITIES } from '../lib/contentTypes';
+import { typeEmoji, typeLabel, isSerial, POSTER_FALLBACK, PRIORITIES, classificacaoInfo } from '../lib/contentTypes';
 import { countWatchedEpisodes } from '../lib/library';
 
 interface DetailModalProps {
@@ -162,11 +162,14 @@ export default function DetailModal({
         <div className="p-5 space-y-4">
           {/* Meta */}
           <div className="flex flex-wrap gap-2 text-[10px]">
-            {item.classificacao && (
-              <span className="px-2 py-1 rounded-lg font-black bg-slate-950 text-amber-300 border border-amber-500/30" title="Classificação indicativa">
-                🔞 {item.classificacao}
-              </span>
-            )}
+            {(() => {
+              const ci = classificacaoInfo(item.classificacao);
+              return ci ? (
+                <span className={`px-2 py-1 rounded-lg font-black border ${ci.classes}`} title={ci.descricao}>
+                  {ci.label}
+                </span>
+              ) : null;
+            })()}
             {!preview && (
               <span className={`px-2 py-1 rounded-lg font-bold border ${
                 item.status_assistido === 'assistido' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/20' :

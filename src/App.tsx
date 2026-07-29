@@ -605,6 +605,35 @@ export default function App() {
     return () => { active = false; };
   }, [detailItem, hasTmdbKey]);
 
+  // Enriquece títulos antigos da biblioteca ao abrir os detalhes: busca trailer
+  // e classificação indicativa no TMDB (uma vez) quando ainda não foram obtidos.
+  useEffect(() => {
+    if (!detailItem || detailPreview || !hasTmdbKey || !detailItem.tmdb_id) return;
+    if (detailItem.trailer_key !== undefined && detailItem.classificacao !== undefined) return;
+    const target = detailItem;
+    const media = target.tmdb_media_type || (isSerial(target.tipo) ? 'tv' : 'movie');
+    let active = true;
+    (async () => {
+      try {
+        const d = await fetchTmdbDetails({ id: target.tmdb_id as number, mediaType: media });
+        if (!active || !d) return;
+        const patch: Partial<Item> = {
+          trailer_key: d.trailer_key || '',
+          classificacao: d.classificacao || '',
+          overview: target.overview || d.overview,
+          elenco: target.elenco && target.elenco.length ? target.elenco : d.elenco,
+          backdrop_url: target.backdrop_url || d.backdrop_url,
+          runtime: target.runtime || d.runtime,
+          num_temporadas: target.num_temporadas || d.num_temporadas,
+          num_episodios: target.num_episodios || d.num_episodios,
+        };
+        setItems((prev) => prev.map((i) => (i.id === target.id ? { ...i, ...patch } : i)));
+        setDetailItem((cur) => (cur && cur.id === target.id ? { ...cur, ...patch } : cur));
+      } catch { /* mantém o que já existe */ }
+    })();
+    return () => { active = false; };
+  }, [detailItem?.id, detailPreview, hasTmdbKey]);
+
   // Sorteador (CineMatch)
   const [matchType, setMatchType] = useState('all'); 
   const [matchStatus, setMatchStatus] = useState('nao_assistido'); 
@@ -1850,7 +1879,7 @@ export default function App() {
             {/* Lista Grid */}
             {processedItems.length > 0 ? (
               density === 'compact' ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
                   {processedItems.map((item) => (
                     <CompactCard
                       key={item.id}
