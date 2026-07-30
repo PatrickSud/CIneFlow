@@ -677,9 +677,8 @@ export default function App() {
   }, [detailItem?.id, detailPreview, hasTmdbKey]);
 
   // Sorteador (CineMatch)
-  const [matchType, setMatchType] = useState('all'); 
-  const [matchStatus, setMatchStatus] = useState('nao_assistido'); 
-  const [matchMinRating, setMatchMinRating] = useState(0); 
+  const [matchTypes, setMatchTypes] = useState<string[]>([]); // vazio = qualquer categoria
+  const [matchStatus, setMatchStatus] = useState<string[]>(['nao_assistido']); // vazio = todos
   const [matchCount, setMatchCount] = useState(3);
   const [matchTags, setMatchTags] = useState<string[]>([]);
   const [matchSmart, setMatchSmart] = useState(true);
@@ -689,7 +688,7 @@ export default function App() {
   const [matchMessage, setMatchMessage] = useState('');
 
   // Ao mudar os critérios, recomeça o histórico de "não repetir"
-  useEffect(() => { setMatchHistory([]); }, [matchType, matchStatus, matchMinRating, matchTags, matchSmart]);
+  useEffect(() => { setMatchHistory([]); }, [matchTypes, matchStatus, matchTags, matchSmart]);
 
   // Notificações (Toast)
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
@@ -1585,11 +1584,10 @@ export default function App() {
 
     setTimeout(() => {
       const pool = items.filter(item => {
-        const matchT = matchType === 'all' || item.tipo === matchType;
-        const matchS = matchStatus === 'all' || item.status_assistido === matchStatus;
-        const matchR = item.nota >= matchMinRating;
+        const matchT = matchTypes.length === 0 || matchTypes.includes(item.tipo);
+        const matchS = matchStatus.length === 0 || matchStatus.includes(item.status_assistido);
         const matchTagsOk = itemHasAllTags(item, matchTags);
-        return matchT && matchS && matchR && matchTagsOk;
+        return matchT && matchS && matchTagsOk;
       });
 
       if (pool.length === 0) {
@@ -2174,91 +2172,124 @@ export default function App() {
             </div>
 
             {/* Configuração do Sorteio */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg grid grid-cols-1 md:grid-cols-4 gap-4">
-              
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Categoria</label>
-                <select
-                  value={matchType}
-                  onChange={(e) => setMatchType(e.target.value)}
-                  className="w-full py-1.5 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold focus:outline-none"
-                >
-                  <option value="all">🍿 Qualquer Tipo</option>
-                  {TYPES.map(t => (
-                    <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg space-y-4">
+
+              {/* Quantidade (primeira opção) */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Quantidade</label>
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 max-w-xs">
+                  {[1, 3, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setMatchCount(n)}
+                      className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
+                        matchCount === n ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {n} {n === 1 ? 'sugestão' : 'sugestões'}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Estado de Visualização</label>
-                <select
-                  value={matchStatus}
-                  onChange={(e) => setMatchStatus(e.target.value)}
-                  className="w-full py-1.5 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold focus:outline-none"
-                >
-                  <option value="nao_assistido">⏳ Pendentes (Não assistidos)</option>
-                  <option value="em_andamento">🍿 Em Curso</option>
-                  <option value="assistido">🔄 Assistidos</option>
-                  <option value="all">✨ Todos</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Avaliação Mínima</label>
-                <select
-                  value={matchMinRating}
-                  onChange={(e) => setMatchMinRating(Number(e.target.value))}
-                  className="w-full py-1.5 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold focus:outline-none"
-                >
-                  <option value="0">✨ Sem Nota Mínima</option>
-                  <option value="3">⭐ Mínimo 3 Estrelas</option>
-                  <option value="4">🌟 Mínimo 4 Estrelas</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Quantidade</label>
-                <select
-                  value={matchCount}
-                  onChange={(e) => setMatchCount(Number(e.target.value))}
-                  className="w-full py-1.5 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold focus:outline-none"
-                >
-                  <option value="1">1 sugestão</option>
-                  <option value="3">3 sugestões</option>
-                  <option value="5">5 sugestões</option>
-                </select>
-              </div>
-
-            </div>
-
-            {/* Filtro por Tags no Match (interseção) */}
-            {allTags.length > 0 && (
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                  Filtrar por Tags {matchTags.length > 0 && <span className="text-purple-400">({matchTags.length} ativas · precisa ter todas)</span>}
+              {/* Categoria (multi-seleção) */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Categoria <span className="text-slate-600 normal-case font-normal">(pode escolher várias)</span>
                 </label>
                 <div className="flex flex-wrap gap-1.5">
-                  {allTags.map(t => {
-                    const active = matchTags.some(f => f.toLowerCase() === t.toLowerCase());
+                  <button
+                    type="button"
+                    onClick={() => setMatchTypes([])}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                      matchTypes.length === 0 ? 'bg-slate-800 text-white border-slate-600' : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    🍿 Todas
+                  </button>
+                  {TYPES.map((t) => {
+                    const active = matchTypes.includes(t.id);
                     return (
                       <button
-                        key={t}
+                        key={t.id}
                         type="button"
-                        onClick={() => toggleTagIn(setMatchTags, t)}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
-                          active
-                            ? 'bg-purple-600 text-white border-purple-500'
-                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
+                        onClick={() => setMatchTypes((prev) => prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                          active ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
                         }`}
                       >
-                        {active ? '✓ ' : '#'}{t}
+                        {active ? '✓ ' : ''}{t.emoji} {t.label}
                       </button>
                     );
                   })}
                 </div>
               </div>
-            )}
+
+              {/* Estado de Visualização (multi, igual à tela de Lista) */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Estado de Visualização <span className="text-slate-600 normal-case font-normal">(pode escolher vários)</span>
+                </label>
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setMatchStatus([])}
+                    className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
+                      matchStatus.length === 0 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  {[
+                    { id: 'nao_assistido', label: 'Pendentes' },
+                    { id: 'em_andamento', label: 'Em Curso' },
+                    { id: 'assistido', label: 'Vistos' },
+                  ].map((opt) => {
+                    const active = matchStatus.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setMatchStatus((prev) => prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id])}
+                        className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
+                          active ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {active ? '✓ ' : ''}{opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Filtro por Tags (no lugar de Avaliação Mínima) */}
+              {allTags.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Filtrar por Tags {matchTags.length > 0 && <span className="text-purple-400 normal-case">({matchTags.length} ativas · precisa ter todas)</span>}
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allTags.map((t) => {
+                      const active = matchTags.some((f) => f.toLowerCase() === t.toLowerCase());
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => toggleTagIn(setMatchTags, t)}
+                          className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                            active ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-purple-500/40 hover:text-purple-300'
+                          }`}
+                        >
+                          {active ? '✓ ' : '#'}{t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
 
             <label className="flex items-center gap-2 px-1 cursor-pointer select-none">
               <input
