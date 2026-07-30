@@ -2586,7 +2586,7 @@ export default function App() {
       )}
 
       {/* ==================== MENU FLUTUANTE INFERIOR COMPACTO E MINIMALISTA ==================== */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-full py-1.5 px-2 shadow-2xl flex justify-between items-center gap-1">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm bg-slate-900/85 backdrop-blur-xl border border-slate-700/70 ring-1 ring-white/10 rounded-full py-1.5 px-2 shadow-[0_10px_40px_-8px_rgba(0,0,0,0.7),0_0_22px_-6px_rgba(124,58,237,0.4)] flex justify-between items-center gap-1">
         <button
           onClick={() => setActiveTab('lista')}
           className={`flex-1 py-1.5 px-2 rounded-full flex items-center justify-center space-x-1 text-xs font-semibold transition-all duration-200 ${
