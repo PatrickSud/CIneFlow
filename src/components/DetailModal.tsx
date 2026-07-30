@@ -283,17 +283,12 @@ export default function DetailModal({
             </div>
           )}
 
-          {preview && tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((t, i) => (
-                <span key={`t${i}`} className="text-[10px] bg-purple-950/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">#{t}</span>
-              ))}
-            </div>
-          )}
-
           {/* Edição rápida: estado, classificação, prioridade e tags */}
-          {!preview && (
+          {(
             <div className="space-y-3 bg-slate-950/40 border border-slate-800 rounded-2xl p-3">
+              {preview && (
+                <p className="text-[10px] text-slate-500 -mb-1">Defina como quer salvar — será aplicado ao adicionar à biblioteca.</p>
+              )}
               {/* Estado de visualização */}
               <div>
                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Estado de visualização</h4>

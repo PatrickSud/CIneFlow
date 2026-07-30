@@ -1285,6 +1285,25 @@ export default function App() {
     showToast(`"${r.titulo}" adicionado à biblioteca!`);
   };
 
+  // Adiciona à biblioteca a partir do modal de pré-visualização, preservando
+  // o que a pessoa já definiu ali (estado, nota, prioridade e tags).
+  const handleAddPreviewToLibrary = () => {
+    const cur = detailItem;
+    const r = detailPreview;
+    if (!cur) return;
+    if (r && isInLibrary(r)) { showToast('Este título já está na biblioteca.', 'info'); closeDetail(); return; }
+    const status = cur.status_assistido || 'nao_assistido';
+    const newItem: Item = {
+      ...cur,
+      id: genId('custom'),
+      data_adicao: new Date().toISOString(),
+      progresso_porcentagem: status === 'assistido' ? 100 : status === 'nao_assistido' ? 0 : (cur.progresso_porcentagem || 0),
+    };
+    setItems((prev) => [newItem, ...prev]);
+    closeDetail();
+    showToast(`"${cur.titulo}" adicionado à biblioteca!`);
+  };
+
   // O título (aproximadamente) já está na biblioteca?
   const isInLibrary = (r: TmdbSearchResult) =>
     items.some(
@@ -2670,7 +2689,7 @@ export default function App() {
           hasTmdbKey={hasTmdbKey}
           preview={!!detailPreview}
           alreadyInLibrary={detailPreview ? isInLibrary(detailPreview) : false}
-          onAdd={detailPreview ? () => { const r = detailPreview; closeDetail(); handleQuickAddFromApi(r); } : undefined}
+          onAdd={detailPreview ? handleAddPreviewToLibrary : undefined}
           onReview={detailPreview ? () => { const r = detailPreview; closeDetail(); handleAddFromApi(r); } : undefined}
           onClose={closeDetail}
           onOpenEpisodes={(it) => { closeDetail(); setEpisodeItem(it); }}
