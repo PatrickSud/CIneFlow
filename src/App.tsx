@@ -177,6 +177,49 @@ export default function App() {
       showToast('Não foi possível criar a lista.', 'error');
     }
   };
+
+  // Lista automática de 5 estrelas (atualiza sozinha)
+  const autoFiveStarList = sharedLists.find(
+    (l) => l.auto === 'fivestar' && user?.email && l.ownerEmail.toLowerCase() === user.email.toLowerCase()
+  );
+  const handleCreateAutoFiveStarList = async () => {
+    if (!user?.email) return;
+    if (autoFiveStarList) { setActiveSource(autoFiveStarList.id); setActiveTab('lista'); return; }
+    try {
+      const five = items.filter((i) => i.nota === 5)
+        .map((i) => ({ ...normalizeItem(i), id: genId('custom'), data_adicao: new Date().toISOString() }));
+      const id = await createSharedList(user.uid, user.email, '⭐ Favoritos (5 estrelas)', [], 'fivestar');
+      if (five.length) await saveListItems(id, five);
+      await refreshLists();
+      setActiveSource(id);
+      setActiveTab('lista');
+      showToast('Lista automática criada — ela se atualiza sozinha ao dar 5★ a um título.');
+    } catch {
+      showToast('Não foi possível criar a lista automática.', 'error');
+    }
+  };
+  // Sincroniza as listas automáticas de 5 estrelas quando a biblioteca muda.
+  const autoSyncRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!user?.email) return;
+    const email = user.email.toLowerCase();
+    const autoLists = sharedLists.filter((l) => l.auto === 'fivestar' && l.ownerEmail.toLowerCase() === email);
+    if (autoLists.length === 0) return;
+    const five = items.filter((i) => i.nota === 5);
+    const sig = five.map((i) => String(i.tmdb_id || `${i.titulo}-${i.ano}`)).sort().join('|');
+    autoLists.forEach((l) => {
+      if (autoSyncRef.current[l.id] === sig) return;
+      autoSyncRef.current[l.id] = sig;
+      (async () => {
+        try {
+          const snapshots = five.map((i) => ({ ...normalizeItem(i), id: genId('custom'), data_adicao: new Date().toISOString() }));
+          await saveListItems(l.id, snapshots);
+          if (l.id === activeSource) setReloadTick((t) => t + 1);
+        } catch { /* ignora falhas de sync */ }
+      })();
+    });
+  }, [items, sharedLists, user, activeSource]);
+
   const handleSaveMembers = async (emails: string[]) => {
     if (!activeList) return;
     try {
@@ -2387,7 +2430,15 @@ export default function App() {
         )}
 
         {/* ==================== TAB: METRICAS E PROGRESSO ==================== */}
-        {activeTab === 'dashboard' && <Dashboard stats={stats} items={items} />}
+        {activeTab === 'dashboard' && (
+          <Dashboard
+            stats={stats}
+            items={items}
+            onOpenItem={setDetailItem}
+            autoListActive={!!autoFiveStarList}
+            onCreateAutoList={handleCreateAutoFiveStarList}
+          />
+        )}
 
         {/* ==================== TAB: DESCOBRIR (recomendações externas) ==================== */}
         {activeTab === 'descobrir' && (

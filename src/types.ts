@@ -88,6 +88,7 @@ export interface SharedList {
   ownerEmail: string;
   memberEmails: string[];
   publico?: boolean; // lista pública: qualquer um com o link vê (só leitura)
+  auto?: string;     // lista automática (ex.: 'fivestar' = títulos com 5 estrelas)
 }
 
 /** Preferências aprendidas do que a pessoa gostou (para recomendação). */

@@ -1,79 +1,67 @@
 // Aba de métricas e progresso.
+import { useState } from 'react';
 import type { Item, Stats } from '../types';
 import { formatMinutes } from '../lib/library';
 
 interface DashboardProps {
   stats: Stats;
   items: Item[];
+  onOpenItem?: (item: Item) => void;
+  autoListActive?: boolean;
+  onCreateAutoList?: () => void;
 }
 
-export default function Dashboard({ stats, items }: DashboardProps) {
+export default function Dashboard({ stats, items, onOpenItem, autoListActive = false, onCreateAutoList }: DashboardProps) {
   const fiveStar = items.filter((i) => i.nota === 5);
+  const [showAllFive, setShowAllFive] = useState(false);
+  const FIVE_LIMIT = 9;
+  const visibleFive = showAllFive ? fiveStar : fiveStar.slice(0, FIVE_LIMIT);
 
   return (
     <section className="space-y-6 max-w-5xl mx-auto">
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Acervo Geral</p>
-            <h3 className="text-2xl font-black text-white mt-1">{stats.total}</h3>
-          </div>
-          <div className="p-2.5 bg-purple-950/50 rounded-xl text-purple-400 text-sm">📁</div>
-        </div>
-
-        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filmes / Séries</p>
-            <h3 className="text-xl font-black text-white mt-1">
-              {stats.movies} <span className="text-xs text-slate-500">Filmes</span> / {stats.shows} <span className="text-xs text-slate-500">Séries</span>
-            </h3>
-          </div>
-          <div className="p-2.5 bg-indigo-950/50 rounded-xl text-indigo-400 text-sm">🎬</div>
-        </div>
-
-        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Concluídos</p>
-            <h3 className="text-2xl font-black text-emerald-400 mt-1">
-              {stats.watched} <span className="text-xs text-slate-500">({stats.watchedPercent}%)</span>
-            </h3>
-          </div>
-          <div className="p-2.5 bg-emerald-950/50 rounded-xl text-emerald-400 text-sm">✓</div>
-        </div>
-
-        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Em Curso</p>
-            <h3 className="text-2xl font-black text-blue-400 mt-1">{stats.inProgress}</h3>
-          </div>
-          <div className="p-2.5 bg-blue-950/50 rounded-xl text-blue-400 text-sm">⏳</div>
-        </div>
-
-      </div>
-
-      {/* Conclusão Geral */}
-      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
+      {/* Progresso de Visualização (unifica concluídos, em curso e total) */}
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-lg">
         <div className="flex justify-between items-center text-xs">
-          <span className="font-bold text-slate-300">Progresso de Visualização Total</span>
-          <span className="text-purple-400 font-black">{stats.watched} de {stats.total} assistidos ({stats.watchedPercent}%)</span>
+          <span className="font-bold text-slate-300 uppercase tracking-wider">📊 Progresso de Visualização</span>
+          <span className="text-purple-400 font-black">{stats.watched} de {stats.total} ({stats.watchedPercent}%)</span>
         </div>
+
         <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-850 p-0.5">
           <div className="bg-gradient-to-r from-purple-600 to-indigo-500 h-full rounded-full transition-all duration-700" style={{ width: `${stats.watchedPercent}%` }}></div>
         </div>
+
+        {/* Mini-indicadores: concluídos, em curso, pendentes */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-slate-950 rounded-xl border border-slate-850 p-3 text-center">
+            <p className="text-lg font-black text-emerald-400 leading-none">{stats.watched}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">✓ Concluídos</p>
+            <p className="text-[9px] text-slate-600">{stats.watchedPercent}%</p>
+          </div>
+          <div className="bg-slate-950 rounded-xl border border-slate-850 p-3 text-center">
+            <p className="text-lg font-black text-blue-400 leading-none">{stats.inProgress}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">🍿 Em Curso</p>
+          </div>
+          <div className="bg-slate-950 rounded-xl border border-slate-850 p-3 text-center">
+            <p className="text-lg font-black text-slate-300 leading-none">{stats.unwatched}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">⏳ Pendentes</p>
+          </div>
+        </div>
+
         {stats.tempoAssistidoMin > 0 && (
-          <p className="text-[11px] text-slate-400 pt-1">
+          <p className="text-[11px] text-slate-400">
             ⏱️ Tempo total assistido (estimado): <strong className="text-slate-200">{formatMinutes(stats.tempoAssistidoMin)}</strong>
             <span className="text-slate-600"> — requer dados de duração do TMDB</span>
           </p>
         )}
       </div>
 
-      {/* Distribuição por Tipo */}
+      {/* Distribuição por Tipo (com o total do acervo no título) */}
       {stats.byType.length > 0 && (
         <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-white">🗂️ Por Tipo de Conteúdo</h4>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            🗂️ Por Tipo de Conteúdo <span className="text-purple-400">(Total {stats.total})</span>
+          </h4>
           <div className="flex flex-wrap gap-2">
             {stats.byType.map((t) => (
               <div key={t.id} className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
@@ -146,18 +134,58 @@ export default function Dashboard({ stats, items }: DashboardProps) {
 
       </div>
 
-      {/* Obras com Classificação de 5 Estrelas */}
+      {/* Títulos de Excelência (5 estrelas) */}
       <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-white">⭐ Títulos de Excelência (Classificação Máxima)</h4>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            ⭐ Títulos de Excelência <span className="text-slate-500 normal-case">({fiveStar.length})</span>
+          </h4>
+          {onCreateAutoList && (
+            autoListActive ? (
+              <button
+                onClick={onCreateAutoList}
+                className="text-[10px] font-bold text-emerald-300 bg-emerald-950/50 border border-emerald-500/30 px-2.5 py-1 rounded-lg hover:bg-emerald-950"
+                title="Abrir a lista automática"
+              >
+                ✓ Lista automática ativa
+              </button>
+            ) : (
+              <button
+                onClick={onCreateAutoList}
+                className="text-[10px] font-bold text-purple-300 bg-purple-950/40 border border-purple-500/30 px-2.5 py-1 rounded-lg hover:bg-purple-950/60"
+                title="Cria uma lista que se atualiza sozinha quando um título recebe 5 estrelas"
+              >
+                ＋ Criar lista automática
+              </button>
+            )
+          )}
+        </div>
+
         {fiveStar.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {fiveStar.map((item) => (
-              <div key={item.id} className="bg-slate-950 p-2.5 rounded-xl border border-slate-850 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200 truncate pr-2">{item.titulo}</span>
-                <span className="bg-amber-950 text-amber-400 text-[10px] px-2 py-0.5 rounded border border-amber-500/20 font-black">★ 5</span>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {visibleFive.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onOpenItem?.(item)}
+                  title="Ver detalhes"
+                  className="text-left bg-slate-950 p-2.5 rounded-xl border border-slate-850 hover:border-purple-500/40 flex items-center justify-between transition-colors"
+                >
+                  <span className="text-xs font-bold text-slate-200 truncate pr-2">{item.titulo}</span>
+                  <span className="bg-amber-950 text-amber-400 text-[10px] px-2 py-0.5 rounded border border-amber-500/20 font-black flex-shrink-0">★ 5</span>
+                </button>
+              ))}
+            </div>
+            {fiveStar.length > FIVE_LIMIT && (
+              <button
+                onClick={() => setShowAllFive((v) => !v)}
+                className="w-full py-2 text-[11px] font-bold text-purple-300 border border-slate-800 hover:border-purple-500/40 rounded-xl transition-colors"
+              >
+                {showAllFive ? 'Ver menos' : `Ver mais… (+${fiveStar.length - FIVE_LIMIT})`}
+              </button>
+            )}
+          </>
         ) : (
           <p className="text-xs text-slate-500 italic">Nenhum título com nota máxima atribuída por enquanto.</p>
         )}

@@ -30,16 +30,19 @@ export async function fetchSharedLists(email: string): Promise<SharedList[]> {
       ownerEmail: data.ownerEmail || '',
       memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [],
       publico: !!data.publico,
+      auto: data.auto || undefined,
     };
   });
 }
 
-/** Cria uma lista com o dono e os membros informados. Devolve o id. */
+/** Cria uma lista com o dono e os membros informados. Devolve o id.
+ *  `auto` marca listas automáticas (ex.: 'fivestar'). */
 export async function createSharedList(
   ownerUid: string,
   ownerEmail: string,
   nome: string,
-  members: string[]
+  members: string[],
+  auto?: string
 ): Promise<string> {
   const memberEmails = Array.from(
     new Set([normEmail(ownerEmail), ...members.map(normEmail).filter(Boolean)])
@@ -50,6 +53,7 @@ export async function createSharedList(
     ownerEmail: normEmail(ownerEmail),
     memberEmails,
     publico: false,
+    auto: auto || null,
     biblioteca: [],
     updatedAt: Date.now(),
   });
@@ -76,6 +80,7 @@ export async function loadListDoc(
       ownerEmail: d.ownerEmail || '',
       memberEmails: Array.isArray(d.memberEmails) ? d.memberEmails : [],
       publico: !!d.publico,
+      auto: d.auto || undefined,
     },
     biblioteca: Array.isArray(d.biblioteca) ? d.biblioteca : [],
   };
